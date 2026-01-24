@@ -1,0 +1,47 @@
+// electron/main.cjs
+const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut } = require("electron");
+const path = require("path");
+
+// Screen share during dev on http://localhost
+app.commandLine.appendSwitch("enable-usermedia-screen-capturing");
+app.commandLine.appendSwitch("allow-http-screen-capture");
+
+let win;
+
+function createWindow() {
+    win = new BrowserWindow({
+        width: 1100,
+        height: 700,
+        webPreferences: {
+            preload: path.join(__dirname, "preload.cjs"),
+            contextIsolation: true,
+            nodeIntegration: false,
+        },
+    });
+
+    win.loadURL("http://localhost:5173");
+}
+
+// Screen share handler 
+function setupDisplayMediaHandler() {
+    const sess = session.defaultSession;
+
+    sess.setDisplayMediaRequestHandler(
+        async (request, callback) => {
+            try {
+                const sources = await desktopCapturer.getSources({
+                    types: ["screen", "window"],
+                });
+
+                const source = sources[0]; // MVP: auto-pick first source
+                if (!source) return callback({}); // deny cleanly
+
+                callback({ video: source, audio: false });
+            } catch (err) {
+                console.error("Display media request failed:", err);
+                callback({}); // deny cleanly
+            }
+        },
+        { useSystemPicker: false }
+    );
+}
