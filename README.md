@@ -142,7 +142,7 @@ Structure first. Enforcement later.
 
 ```bash
 reqruita-desktop/
-├─ electron/        # main + preload
-├─ src/             # react app
+├─ electron/        
+├─ src/            
 ├─ public/
-└─ assets/          # gifs/screenshots for README
+└─ assets/          
