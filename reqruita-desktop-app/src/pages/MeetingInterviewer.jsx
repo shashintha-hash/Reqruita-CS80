@@ -105,3 +105,55 @@ export default function MeetingInterviewer({ session, onEnd }) {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Apply toggles to current stream
+    useEffect(() => {
+        if (!camStream) return;
+        setTracksEnabled(camStream, "audio", !micMuted);
+    }, [micMuted, camStream]);
+
+    useEffect(() => {
+        if (!camStream) return;
+        setTracksEnabled(camStream, "video", !camOff);
+    }, [camOff, camStream]);
+
+    function toggleMic() {
+        setMicMuted((v) => !v);
+    }
+
+    function toggleCam() {
+        setCamOff((v) => !v);
+    }
+
+    function endInterview() {
+        stopStream(camStream);
+        onEnd?.();
+    }
+
+    function togglePanel(next) {
+        setPanel((cur) => (cur === next ? null : next));
+    }
+
+    // Waiting room actions
+    function acceptCandidate(id) {
+        const person = waiting.find((x) => x.id === id);
+        if (!person) return;
+        setWaiting((arr) => arr.filter((x) => x.id !== id));
+        setCompleted((arr) => [person, ...arr]);
+    }
+
+    function rejectCandidate(id) {
+        setWaiting((arr) => arr.filter((x) => x.id !== id));
+    }
+
+    // Chat send
+    function sendMessage() {
+        const text = chatInput.trim();
+        if (!text) return;
+
+        const now = new Date();
+        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+        setMessages((m) => [...m, { id: Date.now(), who: "me", name: "You", text, time }]);
+        setChatInput("");
+    }
