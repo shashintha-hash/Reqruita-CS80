@@ -2,7 +2,7 @@
 const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut } = require("electron");
 const path = require("path");
 
-// Screen share during dev on http://localhost
+// Helps screen share during dev on http://localhost
 app.commandLine.appendSwitch("enable-usermedia-screen-capturing");
 app.commandLine.appendSwitch("allow-http-screen-capture");
 
@@ -22,7 +22,9 @@ function createWindow() {
     win.loadURL("http://localhost:5173");
 }
 
-// Screen share handler 
+/**
+ * Screen share handler (keeps your current working behavior)
+ */
 function setupDisplayMediaHandler() {
     const sess = session.defaultSession;
 
@@ -46,9 +48,10 @@ function setupDisplayMediaHandler() {
     );
 }
 
-//Interview mode (full screen + kiosk-ish lock) via IPC
-// This locks the app window, not the entire OS 
-
+/**
+ * Interview mode (full screen + kiosk-ish lock) via IPC
+ * NOTE: This locks the app window, not the entire OS (Windows secure keys can't be blocked).
+ */
 function setupInterviewModeIPC() {
     ipcMain.handle("rq:enter-interview-mode", () => {
         if (!win) return;
@@ -83,9 +86,10 @@ function setupInterviewModeIPC() {
     });
 }
 
-//Dev safety: emergency unlock shortcut so you never get stuck in kiosk mode.
-//Ctrl+Shift+U -> exit interview mode
-
+/**
+ * Dev safety: emergency unlock shortcut so you never get stuck in kiosk mode.
+ * Ctrl+Shift+U -> exit interview mode
+ */
 function setupEmergencyUnlockShortcut() {
     globalShortcut.register("Control+Shift+U", () => {
         if (!win) return;
