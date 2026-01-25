@@ -417,3 +417,43 @@ export default function MeetingInterviewer({ session, onEnd }) {
                     </aside>
                 )}
             </div>
+
+            {/* Footer */}
+            <div className="mt-footer">
+                <div className="mt-left">
+                    <button className={`mt-ctl ${micMuted ? "mt-ctl-off" : ""}`} onClick={toggleMic}>
+                        {micMuted ? "Mic Off" : "Mic"}
+                    </button>
+                    <button className="mt-caret" title={micLabel}>
+                        ▾
+                    </button>
+
+                    <button className={`mt-ctl ${camOff ? "mt-ctl-off" : ""}`} onClick={toggleCam}>
+                        {camOff ? "Video Off" : "Video"}
+                    </button>
+                    <button className="mt-caret" title={camLabel}>
+                        ▾
+                    </button>
+                </div>
+
+                <div className="mt-mid">
+                    <button className="mt-midbtn" onClick={() => togglePanel("participants")}>
+                        Participants
+                    </button>
+                    <button className="mt-midbtn" onClick={() => togglePanel("chat")}>
+                        Chat
+                    </button>
+                    <button className="mt-midbtn" onClick={() => togglePanel("notes")}>
+                        Notes
+                    </button>
+                </div>
+
+                <div className="mt-right">
+                    <button className="mt-end" onClick={endInterview}>
+                        End Interview
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
