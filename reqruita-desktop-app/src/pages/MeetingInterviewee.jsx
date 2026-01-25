@@ -96,3 +96,36 @@ export default function MeetingInterviewee({ session, onLeave }) {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Apply mic toggle
+    useEffect(() => {
+        if (!camStream) return;
+        setTracksEnabled(camStream, "audio", !micMuted);
+    }, [micMuted, camStream]);
+
+    // Apply camera toggle
+    useEffect(() => {
+        if (!camStream) return;
+        setTracksEnabled(camStream, "video", !camOff);
+    }, [camOff, camStream]);
+
+    function toggleMic() {
+        setMicMuted((v) => !v);
+    }
+
+    function toggleVideo() {
+        setCamOff((v) => !v);
+    }
+
+    function leave() {
+        // Unlock app window first
+        try {
+            window.reqruita?.exitInterviewMode?.();
+        } catch (e) {
+            // ignore
+        }
+
+        stopStream(camStream);
+        stopStream(shareStream);
+        onLeave?.();
+    }
