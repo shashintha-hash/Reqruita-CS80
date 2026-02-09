@@ -1,28 +1,42 @@
 // src/pages/MeetingInterviewer.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./auth-ui.css";
+import { BACKEND_URL } from "../config";
+import { useWebRTC } from "../webrtc/useWebRTC";
 
 /**
- * MeetingInterviewer.jsx
- * - Right panel toggles: Participants / Chat / Notes
- * - Notes has Remarks/Details toggle
- * - Main stage shrinks when right panel opens, tiles keep same size
+ * MeetingInterviewer.jsx (FINAL - WebRTC + Participants Panel)
+ * ✅ Shows:
+ *   - Your local cam preview
+ *   - Remote candidate cam (audio + video)
+ *   - Remote candidate screen share (big stage)
+ * ✅ Keeps:
+ *   - Right panel toggles: Participants / Chat / Notes
+ *   - Participants list from backend (polling every 2s)
  *
- * NOTE:
- * - This is MVP UI + local state (no backend)
- * - Interviewee video/share are placeholders 
+ * Backend requirements:
+ *   - REST: /api/participants endpoints (your existing ones)
+ *   - Socket.IO signaling: join-meeting + webrtc-signal (from the updated server.js)
  */
 
 export default function MeetingInterviewer({ session, onEnd }) {
-    const videoRef = useRef(null);
+    const meetingId = session?.meetingId || "";
 
-    // Streams / devices
+    // Video refs
+    const localVideoRef = useRef(null);
+    const remoteCamRef = useRef(null);
+    const remoteScreenRef = useRef(null);
+
+    // Streams / devices (UI labels only)
     const [devices, setDevices] = useState({ mics: [], cams: [] });
     const [selectedMicId, setSelectedMicId] = useState("");
     const [selectedCamId, setSelectedCamId] = useState("");
+
+    // Toggles
     const [micMuted, setMicMuted] = useState(false);
     const [camOff, setCamOff] = useState(false);
-    const [camStream, setCamStream] = useState(null);
+
+    // UI error
     const [error, setError] = useState("");
 
     // Right panel: null | "participants" | "chat" | "notes"
@@ -39,37 +53,120 @@ export default function MeetingInterviewer({ session, onEnd }) {
     const [notesTab, setNotesTab] = useState("remarks"); // remarks | details
     const [remarks, setRemarks] = useState("");
 
-    // Participants state - Connected to Mock Backend (db.json)
+    // Participants state
     const [participants, setParticipants] = useState([]);
 
-    // Filtering participants based on status from the backend
-    const interviewing = useMemo(() => participants.filter(p => p.status === "interviewing"), [participants]);
-    const waiting = useMemo(() => participants.filter(p => p.status === "waiting"), [participants]);
-    const completed = useMemo(() => participants.filter(p => p.status === "completed"), [participants]);
+    // ✅ WebRTC hook (local cam+mic + remote cam + remote screen)
+    const {
+        localCamStream,
+        remoteCamStream,
+        remoteScreenStream,
+        setMicEnabled,
+        setCamEnabled,
+    } = useWebRTC({ meetingId, role: "interviewer" });
 
-    const API_URL = "http://127.0.0.1:3001/api/participants";
+    // Derived lists
+    const interviewing = useMemo(() => participants.filter((p) => p.status === "interviewing"), [participants]);
+    const waiting = useMemo(() => participants.filter((p) => p.status === "waiting"), [participants]);
+    const completed = useMemo(() => participants.filter((p) => p.status === "completed"), [participants]);
 
-    // Fetches the latest participant list from the backend
+    const API_URL = `${BACKEND_URL}/api/participants`;
+
+    // Normalize backend responses:
+    // - array => array
+    // - { participants: array } => array
+    const normalizeParticipants = (data) => {
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.participants)) return data.participants;
+        return [];
+    };
+
+    // Fetch participant list (GET)
     const fetchParticipants = async () => {
         try {
-            console.log("Fetching from:", API_URL);
             const res = await fetch(API_URL);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
-            console.log("Participants received:", data);
-            // Ensure data is an array before setting state
-            setParticipants(Array.isArray(data) ? data : []);
+            setParticipants(normalizeParticipants(data));
+            setError("");
         } catch (err) {
             console.error("Failed to fetch participants", err);
             setError("Backend connection failed. Please check if the server is running on port 3001.");
-            setParticipants([]); // Reset to empty array on error
+            setParticipants([]);
         }
     };
 
-    // Load participants on component mount
+    // Load + poll participants
     useEffect(() => {
         fetchParticipants();
+        const t = setInterval(fetchParticipants, 2000);
+        return () => clearInterval(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Keep meeting non-scroll
+    useEffect(() => {
+        document.body.classList.add("rq-noscr");
+        return () => document.body.classList.remove("rq-noscr");
+    }, []);
+
+    // Attach local stream to local preview
+    useEffect(() => {
+        if (localVideoRef.current && localCamStream) {
+            localVideoRef.current.srcObject = localCamStream;
+        }
+    }, [localCamStream]);
+
+    // Attach remote cam stream
+    useEffect(() => {
+        if (remoteCamRef.current && remoteCamStream) {
+            remoteCamRef.current.srcObject = remoteCamStream;
+        }
+    }, [remoteCamStream]);
+
+    // Attach remote screen stream
+    useEffect(() => {
+        if (remoteScreenRef.current && remoteScreenStream) {
+            remoteScreenRef.current.srcObject = remoteScreenStream;
+        }
+    }, [remoteScreenStream]);
+
+    // Enumerate devices once we have permission (localCamStream exists)
+    useEffect(() => {
+        let mounted = true;
+
+        (async () => {
+            try {
+                if (!localCamStream) return;
+
+                const list = await navigator.mediaDevices.enumerateDevices();
+                if (!mounted) return;
+
+                const mics = list.filter((d) => d.kind === "audioinput");
+                const cams = list.filter((d) => d.kind === "videoinput");
+                setDevices({ mics, cams });
+
+                if (mics[0]?.deviceId) setSelectedMicId(mics[0].deviceId);
+                if (cams[0]?.deviceId) setSelectedCamId(cams[0].deviceId);
+            } catch (e) {
+                // Not fatal: device labels might be missing
+                console.warn("enumerateDevices failed:", e);
+            }
+        })();
+
+        return () => {
+            mounted = false;
+        };
+    }, [localCamStream]);
+
+    // Apply toggles to local stream through WebRTC hook
+    useEffect(() => {
+        setMicEnabled(!micMuted);
+    }, [micMuted, setMicEnabled]);
+
+    useEffect(() => {
+        setCamEnabled(!camOff);
+    }, [camOff, setCamEnabled]);
 
     const micLabel = useMemo(() => {
         const d = devices.mics.find((x) => x.deviceId === selectedMicId);
@@ -81,54 +178,6 @@ export default function MeetingInterviewer({ session, onEnd }) {
         return d?.label || "Camera";
     }, [devices.cams, selectedCamId]);
 
-    // Keep meeting non-scroll (right panel will scroll internally)
-    useEffect(() => {
-        document.body.classList.add("rq-noscr");
-        return () => document.body.classList.remove("rq-noscr");
-    }, []);
-
-    // Start camera+mic once so labels appear on Windows
-    useEffect(() => {
-        let mounted = true;
-
-        (async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                if (!mounted) return;
-
-                setCamStream(stream);
-                if (videoRef.current) videoRef.current.srcObject = stream;
-
-                const list = await navigator.mediaDevices.enumerateDevices();
-                const mics = list.filter((d) => d.kind === "audioinput");
-                const cams = list.filter((d) => d.kind === "videoinput");
-                setDevices({ mics, cams });
-
-                if (mics[0]?.deviceId) setSelectedMicId(mics[0].deviceId);
-                if (cams[0]?.deviceId) setSelectedCamId(cams[0].deviceId);
-            } catch (e) {
-                setError("Could not access camera/microphone. Please check permissions.");
-            }
-        })();
-
-        return () => {
-            mounted = false;
-            stopStream(camStream);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Apply toggles to current stream
-    useEffect(() => {
-        if (!camStream) return;
-        setTracksEnabled(camStream, "audio", !micMuted);
-    }, [micMuted, camStream]);
-
-    useEffect(() => {
-        if (!camStream) return;
-        setTracksEnabled(camStream, "video", !camOff);
-    }, [camOff, camStream]);
-
     function toggleMic() {
         setMicMuted((v) => !v);
     }
@@ -138,7 +187,6 @@ export default function MeetingInterviewer({ session, onEnd }) {
     }
 
     function endInterview() {
-        stopStream(camStream);
         onEnd?.();
     }
 
@@ -146,17 +194,16 @@ export default function MeetingInterviewer({ session, onEnd }) {
         setPanel((cur) => (cur === next ? null : next));
     }
 
-    // Waiting room actions - Integrated with Backend Status Transitions
+    // Waiting room actions (POST) - update state from response
     async function acceptCandidate(id) {
         try {
-            // Tells backend to move current interviewer to 'completed' 
-            // and the selected candidate to 'interviewing'
-            await fetch(`${API_URL}/allow`, {
+            const res = await fetch(`${API_URL}/allow`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id }),
             });
-            fetchParticipants(); // Refresh lists to show updated statuses
+            const data = await res.json();
+            setParticipants(normalizeParticipants(data));
         } catch (err) {
             console.error("Failed to accept candidate", err);
         }
@@ -164,13 +211,13 @@ export default function MeetingInterviewer({ session, onEnd }) {
 
     async function rejectCandidate(id) {
         try {
-            // Removes candidate from the list/database
-            await fetch(`${API_URL}/reject`, {
+            const res = await fetch(`${API_URL}/reject`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id }),
             });
-            fetchParticipants(); // Refresh lists
+            const data = await res.json();
+            setParticipants(normalizeParticipants(data));
         } catch (err) {
             console.error("Failed to reject candidate", err);
         }
@@ -178,13 +225,13 @@ export default function MeetingInterviewer({ session, onEnd }) {
 
     async function completeCandidate(id) {
         try {
-            // Moves candidate to 'completed' status
-            await fetch(`${API_URL}/complete`, {
+            const res = await fetch(`${API_URL}/complete`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id }),
             });
-            fetchParticipants(); // Refresh lists
+            const data = await res.json();
+            setParticipants(normalizeParticipants(data));
         } catch (err) {
             console.error("Failed to complete candidate", err);
         }
@@ -202,6 +249,9 @@ export default function MeetingInterviewer({ session, onEnd }) {
         setChatInput("");
     }
 
+    const hasRemoteCam = !!remoteCamStream;
+    const hasRemoteScreen = !!remoteScreenStream;
+
     return (
         <div className="mt-wrap">
             {error && <div className="mt-err">{error}</div>}
@@ -210,45 +260,48 @@ export default function MeetingInterviewer({ session, onEnd }) {
             <div className={`mt-mainrow ${panel ? "withSide" : ""}`}>
                 {/* Main Stage */}
                 <div className="mt-stage">
-                    {/* Main shared screen placeholder */}
+                    {/* Main shared screen (remote screen share) */}
                     <div className="mt-share">
-                        <div className="mt-share-placeholder">
-                            <div style={{ fontSize: 14, marginBottom: 12 }}>
-                                📺 Interviewee's Shared Screen
+                        {hasRemoteScreen ? (
+                            <video ref={remoteScreenRef} autoPlay playsInline />
+                        ) : (
+                            <div className="mt-share-placeholder">
+                                Candidate screen share (waiting…)
+                                <div style={{ marginTop: 8, fontWeight: 700, opacity: 0.8, fontSize: 12 }}>
+                                    Meeting: {meetingId || "—"}
+                                </div>
                             </div>
-                            <div style={{ marginTop: 8, fontWeight: 700, opacity: 0.8, fontSize: 12 }}>
-                                Meeting: {session?.meetingId || "—"}
-                            </div>
-                            <div style={{ marginTop: 16, fontSize: 11, opacity: 0.6 }}>
-                                When the interviewee shares their screen,<br />
-                                you'll see their entire display here (including Google app and all windows)
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Interviewee cam tile (bottom-left) */}
                     <div className="mt-tile mt-tile-peer">
-                        <div
-                            style={{
-                                width: "100%",
-                                height: "100%",
-                                background:
-                                    "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
-                                display: "grid",
-                                placeItems: "center",
-                                color: "rgba(255,255,255,0.9)",
-                                fontWeight: 900,
-                                fontSize: 12,
-                            }}
-                        >
-                            Interviewee video
-                        </div>
+                        {hasRemoteCam ? (
+                            <video ref={remoteCamRef} autoPlay playsInline />
+                        ) : (
+                            <div
+                                style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    background: "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    color: "rgba(255,255,255,0.9)",
+                                    fontWeight: 900,
+                                    fontSize: 12,
+                                    textAlign: "center",
+                                    padding: 10,
+                                }}
+                            >
+                                Candidate video (waiting…)
+                            </div>
+                        )}
                         <div className="mt-tile-label">Interviewee</div>
                     </div>
 
                     {/* Interviewer tile (bottom-right) */}
                     <div className="mt-tile mt-tile-self">
-                        <video ref={videoRef} autoPlay playsInline muted />
+                        <video ref={localVideoRef} autoPlay playsInline muted />
                         <div className="mt-tile-label">You (Interviewer)</div>
                     </div>
                 </div>
@@ -277,18 +330,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
                                                 name={p.name}
                                                 actions={
                                                     <div className="mt-actions">
-                                                        <button
-                                                            className="mt-act mt-act-red"
-                                                            title="Reject"
-                                                            onClick={() => rejectCandidate(p.id)}
-                                                        >
+                                                        <button className="mt-act mt-act-red" title="Reject" onClick={() => rejectCandidate(p.id)}>
                                                             ✕
                                                         </button>
-                                                        <button
-                                                            className="mt-act mt-act-blue"
-                                                            title="Complete"
-                                                            onClick={() => completeCandidate(p.id)}
-                                                        >
+                                                        <button className="mt-act mt-act-blue" title="Complete" onClick={() => completeCandidate(p.id)}>
                                                             ✓
                                                         </button>
                                                         <button className="mt-act mt-act-gray" title="More">
@@ -298,6 +343,9 @@ export default function MeetingInterviewer({ session, onEnd }) {
                                                 }
                                             />
                                         ))}
+                                        {interviewing.length === 0 && (
+                                            <div style={{ padding: 12, opacity: 0.8, fontSize: 12 }}>No one is interviewing right now.</div>
+                                        )}
                                     </div>
 
                                     <div className="mt-sec-title" style={{ marginTop: 14 }}>
@@ -310,18 +358,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
                                                 name={p.name}
                                                 actions={
                                                     <div className="mt-actions">
-                                                        <button
-                                                            className="mt-act mt-act-red"
-                                                            title="Remove"
-                                                            onClick={() => rejectCandidate(p.id)}
-                                                        >
+                                                        <button className="mt-act mt-act-red" title="Remove" onClick={() => rejectCandidate(p.id)}>
                                                             ✕
                                                         </button>
-                                                        <button
-                                                            className="mt-act mt-act-blue"
-                                                            title="Admit"
-                                                            onClick={() => acceptCandidate(p.id)}
-                                                        >
+                                                        <button className="mt-act mt-act-blue" title="Admit" onClick={() => acceptCandidate(p.id)}>
                                                             ✓
                                                         </button>
                                                         <button className="mt-act mt-act-gray" title="More">
@@ -331,6 +371,9 @@ export default function MeetingInterviewer({ session, onEnd }) {
                                                 }
                                             />
                                         ))}
+                                        {waiting.length === 0 && (
+                                            <div style={{ padding: 12, opacity: 0.8, fontSize: 12 }}>No one is in the waiting room.</div>
+                                        )}
                                     </div>
 
                                     <div className="mt-sec-title" style={{ marginTop: 14 }}>
@@ -350,6 +393,9 @@ export default function MeetingInterviewer({ session, onEnd }) {
                                                 }
                                             />
                                         ))}
+                                        {completed.length === 0 && (
+                                            <div style={{ padding: 12, opacity: 0.8, fontSize: 12 }}>No completed participants yet.</div>
+                                        )}
                                     </div>
                                 </>
                             )}
@@ -390,16 +436,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
                             {panel === "notes" && (
                                 <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
                                     <div className="nt-topTabs">
-                                        <button
-                                            className={`nt-tab ${notesTab === "remarks" ? "active" : ""}`}
-                                            onClick={() => setNotesTab("remarks")}
-                                        >
+                                        <button className={`nt-tab ${notesTab === "remarks" ? "active" : ""}`} onClick={() => setNotesTab("remarks")}>
                                             Remarks
                                         </button>
-                                        <button
-                                            className={`nt-tab ${notesTab === "details" ? "active" : ""}`}
-                                            onClick={() => setNotesTab("details")}
-                                        >
+                                        <button className={`nt-tab ${notesTab === "details" ? "active" : ""}`} onClick={() => setNotesTab("details")}>
                                             Details
                                         </button>
                                     </div>
@@ -456,11 +496,8 @@ export default function MeetingInterviewer({ session, onEnd }) {
 
                                                 <div className="nt-h2">Professional Summary</div>
                                                 <div className="nt-small">
-                                                    Results-driven Software Engineer with 5+ years of experience designing,
-                                                    developing, and maintaining scalable web and backend applications. Strong
-                                                    background in full-stack development, cloud technologies, and agile
-                                                    methodologies. Passionate about clean code, performance optimization, and
-                                                    continuous learning.
+                                                    Results-driven Software Engineer with 5+ years of experience designing, developing, and maintaining scalable web and backend applications.
+                                                    Strong background in full-stack development, cloud technologies, and agile methodologies.
                                                 </div>
 
                                                 <div className="nt-h2">Technical Skills</div>
@@ -535,15 +572,4 @@ function ParticipantRow({ name, actions }) {
             {actions}
         </div>
     );
-}
-
-/* ---------- Media helpers ---------- */
-function stopStream(stream) {
-    if (!stream) return;
-    for (const track of stream.getTracks()) track.stop();
-}
-
-function setTracksEnabled(stream, kind, enabled) {
-    const tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
-    for (const t of tracks) t.enabled = enabled;
 }
