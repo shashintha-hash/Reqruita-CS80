@@ -213,9 +213,15 @@ export default function MeetingInterviewer({ session, onEnd }) {
                     {/* Main shared screen placeholder */}
                     <div className="mt-share">
                         <div className="mt-share-placeholder">
-                            Interviewee screen share (placeholder)
+                            <div style={{ fontSize: 14, marginBottom: 12 }}>
+                                📺 Interviewee's Shared Screen
+                            </div>
                             <div style={{ marginTop: 8, fontWeight: 700, opacity: 0.8, fontSize: 12 }}>
                                 Meeting: {session?.meetingId || "—"}
+                            </div>
+                            <div style={{ marginTop: 16, fontSize: 11, opacity: 0.6 }}>
+                                When the interviewee shares their screen,<br />
+                                you'll see their entire display here (including Google app and all windows)
                             </div>
                         </div>
                     </div>

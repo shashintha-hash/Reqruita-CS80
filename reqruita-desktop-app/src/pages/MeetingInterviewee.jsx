@@ -18,8 +18,10 @@ import "./auth-ui.css";
 
 export default function MeetingInterviewee({ session, onLeave }) {
     const camRef = useRef(null);
+    const screenRef = useRef(null);
 
     const [camStream, setCamStream] = useState(null);
+    const [screenStream, setScreenStream] = useState(null);
 
     const [micMuted, setMicMuted] = useState(false);
     const [camOff, setCamOff] = useState(false);
@@ -51,7 +53,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
         return () => document.body.classList.remove("rq-noscr");
     }, []);
 
-    // Start camera when entering meeting
+    // Start camera + screen share when entering meeting
     useEffect(() => {
         let mounted = true;
 
@@ -65,6 +67,32 @@ export default function MeetingInterviewee({ session, onLeave }) {
 
                 setCamStream(cam);
                 if (camRef.current) camRef.current.srcObject = cam;
+
+                // Auto-start screen sharing
+                try {
+                    const screen = await navigator.mediaDevices.getDisplayMedia({
+                        video: {
+                            cursor: "always"
+                        },
+                        audio: false
+                    });
+                    
+                    if (!mounted) {
+                        stopStream(screen);
+                        return;
+                    }
+
+                    setScreenStream(screen);
+                    if (screenRef.current) screenRef.current.srcObject = screen;
+
+                    // Handle when user stops sharing via browser UI
+                    screen.getVideoTracks()[0].onended = () => {
+                        setScreenStream(null);
+                    };
+                } catch (screenErr) {
+                    console.warn("Screen sharing not started:", screenErr);
+                    // Don't show error for screen share - it's optional
+                }
             } catch (e) {
                 setError("Could not start camera/microphone. Please check permissions.");
             }
@@ -73,6 +101,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
         return () => {
             mounted = false;
             stopStream(camStream);
+            stopStream(screenStream);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -106,6 +135,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
         }
 
         stopStream(camStream);
+        if (screenStream) stopStream(screenStream);
         onLeave?.();
     }
 
@@ -118,8 +148,21 @@ export default function MeetingInterviewee({ session, onLeave }) {
             )}
 
             <div className="jm-row">
-                {/* Main shared screen */}
+                {/* Main area - Google App (interviewee uses this) */}
+                {/* Screen capture happens in background, sent to interviewer */}
                 <div className="jm-main">
+                    {/* Hidden video element for screen capture (not displayed, just for stream) */}
+                    {screenStream && (
+                        <video 
+                            ref={screenRef} 
+                            autoPlay 
+                            playsInline 
+                            muted
+                            style={{ display: 'none' }}
+                        />
+                    )}
+                    
+                    {/* Google App (visible to interviewee) */}
                     <div className="jm-google">
                         {!googleOpen && (
                             <div className="jm-google-launch">
