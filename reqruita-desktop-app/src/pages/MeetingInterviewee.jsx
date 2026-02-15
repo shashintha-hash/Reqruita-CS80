@@ -192,9 +192,9 @@ export default function MeetingInterviewee({ session, onLeave }) {
                 </div>
             )}
 
-            <div className="jm-row">
+            <div className="jm-row" style={sharing ? { height: "100vh" } : undefined}>
                 {/* Main area */}
-                <div className="jm-main">
+                <div className="jm-main" style={sharing ? { flex: 1, maxWidth: "100%" } : undefined}>
                     <div className="jm-google">
                         {!googleOpen && (
                             <div className="jm-google-launch">
@@ -233,7 +233,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
                 </div>
 
                 {/* Side videos */}
-                <div className="jm-side">
+                <div className="jm-side" style={sharing ? { display: "none" } : undefined}>
                     {/* Candidate video */}
                     <div className="jm-tile">
                         <video ref={localCamRef} autoPlay playsInline muted />
@@ -269,7 +269,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
             </div>
 
             {/* Footer */}
-            <div className="jm-footer">
+            <div className="jm-footer" style={sharing ? { display: "none" } : undefined}>
                 <div className="jm-left" style={{ display: "flex", gap: 10 }}>
                     <button className={`mt-ctl ${micMuted ? "mt-ctl-off" : ""}`} onClick={toggleMic}>
                         {micMuted ? "Mic Off" : "Mic"}
@@ -288,6 +288,30 @@ export default function MeetingInterviewee({ session, onLeave }) {
                     Leave interview
                 </button>
             </div>
+
+            {/* Floating stop-share button visible during screen share (controls are hidden) */}
+            {sharing && (
+                <button
+                    onClick={toggleShare}
+                    style={{
+                        position: "fixed",
+                        bottom: 16,
+                        right: 16,
+                        zIndex: 9999,
+                        padding: "8px 18px",
+                        background: "#dc2626",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                        fontSize: 13,
+                    }}
+                >
+                    Stop Sharing
+                </button>
+            )}
         </div>
     );
 }

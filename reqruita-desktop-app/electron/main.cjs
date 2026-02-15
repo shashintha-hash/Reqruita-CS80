@@ -35,10 +35,10 @@ function setupDisplayMediaHandler() {
                     types: ["screen", "window"],
                 });
 
-                // Prefer a full-display capture so the interviewer always sees the entire desktop
+                // Prefer the Electron app window so only the app content is shared (not the full desktop)
                 const source =
-                    sources.find((src) => src.id?.toLowerCase().startsWith("screen:")) ||
-                    sources.find((src) => src.display_id) ||
+                    sources.find((src) => src.name === win?.getTitle()) ||
+                    sources.find((src) => src.id?.toLowerCase().startsWith("window:")) ||
                     sources[0];
                 if (!source) return callback({}); // deny cleanly
 
