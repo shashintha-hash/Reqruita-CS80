@@ -18,7 +18,7 @@ import { useWebRTC } from "../webrtc/useWebRTC";
  * - BACKEND_URL must be reachable from BOTH laptops (use LAN IP, not localhost).
  */
 
-export default function MeetingInterviewee({ session, onLeave }) {
+export default function MeetingInterviewee({ session, onLeave, addToast }) {
     const meetingId = useMemo(() => session?.meetingId || "", [session]);
 
     // Video refs
@@ -121,12 +121,16 @@ export default function MeetingInterviewee({ session, onLeave }) {
     // 7) Track screen share state + auto-open Google when sharing starts
     useEffect(() => {
         const isSharing = !!localScreenStream;
-        setSharing(isSharing);
+        setSharing((prev) => {
+            if (isSharing && !prev) addToast?.("Screen sharing started", "info");
+            if (!isSharing && prev) addToast?.("Screen sharing stopped", "warning");
+            return isSharing;
+        });
         if (isSharing) {
             // Use functional updater so we don't need googleOpen in deps
             setGoogleOpen((prev) => prev || true);
         }
-    }, [localScreenStream]);
+    }, [localScreenStream, addToast]);
 
     // Automatically share the desktop on join inside the Electron shell so the interviewer sees the full screen immediately
     useEffect(() => {
@@ -169,6 +173,7 @@ export default function MeetingInterviewee({ session, onLeave }) {
     }
 
     function leave() {
+        if (!window.confirm("Are you sure you want to leave the interview?")) return;
         try {
             window.reqruita?.exitInterviewMode?.();
         } catch (e) { }
