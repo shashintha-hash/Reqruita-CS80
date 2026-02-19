@@ -19,7 +19,7 @@ import { useWebRTC } from "../webrtc/useWebRTC";
  *   - Socket.IO signaling: join-meeting + webrtc-signal (from the updated server.js)
  */
 
-export default function MeetingInterviewer({ session, onEnd }) {
+export default function MeetingInterviewer({ session, onEnd, addToast }) {
     const meetingId = session?.meetingId || "";
 
     // Video refs
@@ -117,19 +117,33 @@ export default function MeetingInterviewer({ session, onEnd }) {
         }
     }, [localCamStream]);
 
-    // Attach remote cam stream
+    // Attach remote cam stream + toast
+    const prevRemoteCam = useRef(false);
     useEffect(() => {
         if (remoteCamRef.current && remoteCamStream) {
             remoteCamRef.current.srcObject = remoteCamStream;
         }
-    }, [remoteCamStream]);
+        const hasNow = !!remoteCamStream;
+        if (hasNow && !prevRemoteCam.current) {
+            addToast?.("Candidate joined the meeting", "success");
+        } else if (!hasNow && prevRemoteCam.current) {
+            addToast?.("Candidate disconnected", "warning");
+        }
+        prevRemoteCam.current = hasNow;
+    }, [remoteCamStream, addToast]);
 
-    // Attach remote screen stream
+    // Attach remote screen stream + toast
+    const prevRemoteScreen = useRef(false);
     useEffect(() => {
         if (remoteScreenRef.current && remoteScreenStream) {
             remoteScreenRef.current.srcObject = remoteScreenStream;
         }
-    }, [remoteScreenStream]);
+        const hasNow = !!remoteScreenStream;
+        if (hasNow && !prevRemoteScreen.current) {
+            addToast?.("Candidate screen share received", "info");
+        }
+        prevRemoteScreen.current = hasNow;
+    }, [remoteScreenStream, addToast]);
 
     // Enumerate devices once we have permission (localCamStream exists)
     useEffect(() => {
@@ -187,6 +201,7 @@ export default function MeetingInterviewer({ session, onEnd }) {
     }
 
     function endInterview() {
+        if (!window.confirm("Are you sure you want to end the interview?")) return;
         onEnd?.();
     }
 
@@ -204,8 +219,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
             });
             const data = await res.json();
             setParticipants(normalizeParticipants(data));
+            addToast?.("Participant accepted", "success");
         } catch (err) {
             console.error("Failed to accept candidate", err);
+            addToast?.("Failed to accept participant", "error");
         }
     }
 
@@ -218,8 +235,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
             });
             const data = await res.json();
             setParticipants(normalizeParticipants(data));
+            addToast?.("Participant rejected", "info");
         } catch (err) {
             console.error("Failed to reject candidate", err);
+            addToast?.("Failed to reject participant", "error");
         }
     }
 
@@ -232,8 +251,10 @@ export default function MeetingInterviewer({ session, onEnd }) {
             });
             const data = await res.json();
             setParticipants(normalizeParticipants(data));
+            addToast?.("Interview marked as complete", "success");
         } catch (err) {
             console.error("Failed to complete candidate", err);
+            addToast?.("Failed to complete interview", "error");
         }
     }
 
@@ -255,6 +276,15 @@ export default function MeetingInterviewer({ session, onEnd }) {
     return (
         <div className="mt-wrap">
             {error && <div className="mt-err">{error}</div>}
+
+            {/* Connection status indicator */}
+            <div className="mt-conn-status">
+                <span className={`mt-conn-dot ${hasRemoteCam ? "mt-conn-on" : "mt-conn-pulse"}`} />
+                <span className="mt-conn-text">
+                    {hasRemoteCam ? "Candidate connected" : "Waiting for candidate…"}
+                </span>
+                <span className="mt-conn-id">Meeting: {meetingId || "—"}</span>
+            </div>
 
             {/* Stage + Right Panel */}
             <div className={`mt-mainrow ${panel ? "withSide" : ""}`}>
