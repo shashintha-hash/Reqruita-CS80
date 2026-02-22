@@ -42,7 +42,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
     const [messages, setMessages] = useState([]);
 
     //socket ref for chat
-    const socketRef = useRef(null);
+    const chatSocketRef = useRef(null);
 
     // Candidate display name (later replace with real input)
     const candidateName = session?.candidateName || session?.name || "Candidate";
@@ -105,7 +105,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         setChatInput("");
     }
 
-    
+
     // 1) Enter/Exit interview mode (Electron)
     useEffect(() => {
         try {
@@ -415,6 +415,10 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                     <span>Leave</span>
                 </button>
             </div>
-        </div>
+        
+
+         </div>
+
+         
     );
 }
