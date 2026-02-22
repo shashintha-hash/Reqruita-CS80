@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image"; // Import the Image component
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,14 +15,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-50 flex h-screen overflow-hidden">
-        {/* Sidebar would go here */}
+        {/* Sidebar */}
         <aside className="w-64 bg-[#5D20B3] text-white hidden md:flex flex-col p-6">
           <div className="text-2xl font-bold mb-10 flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-[#5D20B3]">
-              R
-            </div>
+            {/* Logo Image added here */}
+            <Image
+              src="/ReqruitaLogo.png" // Change to .svg if that is your file extension
+              alt="Reqruita Logo"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
             Reqruita
           </div>
+
           <nav className="space-y-4">
             {[
               "Home",
@@ -33,7 +40,11 @@ export default function RootLayout({
             ].map((item) => (
               <button
                 key={item}
-                className="w-full text-left py-3 px-4 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                className={`w-full text-left py-3 px-4 rounded-lg transition ${
+                  item === "Home"
+                    ? "bg-white text-[#5D20B3] font-semibold"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
               >
                 {item}
               </button>
@@ -49,15 +60,17 @@ export default function RootLayout({
               <input
                 type="text"
                 placeholder="Search"
-                className="w-full bg-gray-100 border-none rounded-full px-4 py-2 outline-none focus:ring-2 ring-purple-500"
+                className="w-full bg-gray-100 border-none rounded-full px-4 py-2 outline-none focus:ring-2 ring-purple-500 text-black"
               />
             </div>
-            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">
+            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-black">
               B
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-8">{children}</main>
+          <main className="flex-1 overflow-y-auto p-8 text-black">
+            {children}
+          </main>
         </div>
       </body>
     </html>
