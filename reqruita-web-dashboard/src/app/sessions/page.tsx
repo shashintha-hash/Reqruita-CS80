@@ -44,7 +44,9 @@ export default function SessionsPage() {
                   <button className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
                     Join
                   </button>
-                  <button className="text-[#5D20B3] text-sm hover:underline">View</button>
+                  <button className="text-[#5D20B3] text-sm hover:underline">
+                    View
+                  </button>
                 </td>
               </tr>
             ))}
@@ -57,10 +59,17 @@ export default function SessionsPage() {
         <h2 className="text-xl font-bold mb-6">Session History</h2>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+            <div
+              key={i}
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+            >
               <div>
-                <h3 className="font-bold">Session {i}: Senior Developer Interview</h3>
-                <p className="text-gray-600 text-sm">Completed on Nov {20 - i}, 2025</p>
+                <h3 className="font-bold">
+                  Session {i}: Senior Developer Interview
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Completed on Nov {20 - i}, 2025
+                </p>
               </div>
               <div className="text-right">
                 <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">

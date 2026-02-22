@@ -26,28 +26,36 @@ export default function UserRolesPage() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {["Admin", "Interviewer", "Recruiter", "HR Manager", "Candidate"].map(
-              (role, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="py-4">John Smith</td>
-                  <td className="py-4">john.smith@company.com</td>
-                  <td className="py-4">
-                    <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-medium">
-                      {role}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                      Active
-                    </span>
-                  </td>
-                  <td className="py-4 flex gap-2">
-                    <button className="text-[#5D20B3] text-sm hover:underline">Edit</button>
-                    <button className="text-red-600 text-sm hover:underline">Remove</button>
-                  </td>
-                </tr>
-              )
-            )}
+            {[
+              "Admin",
+              "Interviewer",
+              "Recruiter",
+              "HR Manager",
+              "Candidate",
+            ].map((role, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="py-4">John Smith</td>
+                <td className="py-4">john.smith@company.com</td>
+                <td className="py-4">
+                  <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-medium">
+                    {role}
+                  </span>
+                </td>
+                <td className="py-4">
+                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                    Active
+                  </span>
+                </td>
+                <td className="py-4 flex gap-2">
+                  <button className="text-[#5D20B3] text-sm hover:underline">
+                    Edit
+                  </button>
+                  <button className="text-red-600 text-sm hover:underline">
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -57,7 +65,10 @@ export default function UserRolesPage() {
         {[
           { name: "Admin", permission: "Full Access" },
           { name: "Interviewer", permission: "Interview & Feedback" },
-          { name: "Recruiter", permission: "Job Posting & Candidate Management" },
+          {
+            name: "Recruiter",
+            permission: "Job Posting & Candidate Management",
+          },
           { name: "HR Manager", permission: "Reports & Settings" },
           { name: "Candidate", permission: "View & Apply" },
         ].map((role) => (
