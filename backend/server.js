@@ -260,7 +260,32 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         console.log("Socket disconnected:", socket.id);
+
     });
+    
+    /*-------------------- SOCKET.IO (CHAT) --------------------*/
+    
+    const ChatMessage =require("./ChatMessage");
+    socket.on("join-chat",({interviewId}) =>{
+        if(!interviewId) return;
+        socket.join(`chat:${interviewId}`);
+    });
+
+    socket.on("chat-message", async (data) => {
+    const { interviewId, senderRole, senderName, message } = data;
+    if (!interviewId || !message) return;
+
+    const saved = await ChatMessage.create({
+     interviewId,
+     senderRole,
+     senderName,
+     message,
+  });
+
+    if (saved) {
+        io.to(`chat:${interviewId}`).emit("new-chat-message", saved);
+    }
+});
 });
 
 // -------------------- START SERVER --------------------
