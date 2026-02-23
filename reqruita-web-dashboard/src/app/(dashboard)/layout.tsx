@@ -12,7 +12,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const navItems = [
-    { label: "Home", href: "/" },
+    { label: "Home", href: "/home" },
     { label: "Job Forms", href: "/job-forms" },
     { label: "User & Roles", href: "/user-roles" },
     { label: "Sessions", href: "/sessions" },
