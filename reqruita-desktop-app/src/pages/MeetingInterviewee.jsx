@@ -90,6 +90,11 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             .catch(() => {});
     }, [meetingId]);
 
+    //toggle chat panel
+     function toggleChatPanel() {
+       setChatOpen((prev) => !prev);
+     }
+
     // Send chat message
     function sendChatMessage() {
         const text = chatInput.trim();
@@ -101,6 +106,8 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             senderName: candidateName,
             message: text,
         });
+
+        setMessages((prev) => [...prev, { senderRole: "interviewee", senderName: candidateName, message: text }]);
 
         setChatInput("");
     }
@@ -337,6 +344,50 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         )}
                         <div className="jm-label">Interviewer</div>
                     </div>
+
+                    {/* Chat panel */}
+                    {chatOpen && (
+                       <aside className="mt-side mt-side-enter">
+                        <div className="mt-side-head">
+                         <div className="mt-side-title">Chat</div>
+                        <button className="mt-side-close" onClick={toggleChatPanel}>
+                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                         </svg>
+                        </button>
+                       </div>
+                       <div className="mt-side-body" style={{ padding: 0 }}>
+                        <div className="mt-chat">
+                         <div className="mt-chat-list">
+                          {messages.map((m) => (
+                           <div key={m.id} className={`mt-msg ${m.who}`}>
+                            <div className="mt-msgmeta">
+                             <span>{m.name}</span>
+                             <span>{m.time}</span>
+                           </div>
+                           <div className="mt-bubble">{m.text}</div>
+                           </div>
+                    ))}
+                     </div>
+                     <div className="mt-chat-input">
+                     <input
+                     className="mt-chat-field"
+                     value={chatInput}
+                     onChange={(e) => setChatInput(e.target.value)}
+                     placeholder="Type a message…"
+                     onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+                    />
+                  <button className="mt-send" onClick={sendMessage} disabled={!chatInput.trim()}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                   </svg>
+                 </button>
+               </div>
+             </div>
+           </div>
+         </aside>
+    )}
                 </div>
             </div>
 
@@ -397,14 +448,12 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         <span className="mt-icon-label">{sharing ? "Stop" : "Share"}</span>
                     </button>
                     {/*Chat*/}
-                    <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={()=> setChatOpen ((v) => !v)}
-                    title="chat"
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth ="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        </svg>
-                        <span className ="mt-icon-label">Chat</span>
-                    </button>
+                   <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={toggleChatPanel} title="Chat">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                   <span className="mt-icon-label">Chat</span>
+                  </button>
                 </div>
 
                 <button className="mt-end" onClick={leave}>
