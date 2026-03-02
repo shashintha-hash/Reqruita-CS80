@@ -25,6 +25,7 @@ export default function JobFormsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditTemplateModal, setShowEditTemplateModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedSubmission, setSelectedSubmission] =
     useState<Submission | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
@@ -32,6 +33,7 @@ export default function JobFormsPage() {
   );
   const [newFormTitle, setNewFormTitle] = useState("");
   const [newFormDescription, setNewFormDescription] = useState("");
+  const [copySuccess, setCopySuccess] = useState<number | null>(null);
 
   const [submissions] = useState<Submission[]>([
     {
@@ -188,6 +190,19 @@ export default function JobFormsPage() {
     setShowEditTemplateModal(true);
   };
 
+  const handlePreviewTemplate = (template: Template) => {
+    setSelectedTemplate(template);
+    setShowPreviewModal(true);
+  };
+
+  const handleCopyLink = (template: Template) => {
+    const formUrl = `${window.location.origin}/apply/${template.id}`;
+    navigator.clipboard.writeText(formUrl).then(() => {
+      setCopySuccess(template.id);
+      setTimeout(() => setCopySuccess(null), 2000);
+    });
+  };
+
   const handleCreateForm = () => {
     if (newFormTitle.trim()) {
       const newTemplate: Template = {
@@ -281,18 +296,34 @@ export default function JobFormsPage() {
           {templates.map((template) => (
             <div
               key={template.id}
-              className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+              className="border rounded-lg p-4 hover:shadow-md transition"
             >
               <h3 className="font-bold text-lg mb-2">{template.title}</h3>
               <p className="text-gray-600 text-sm mb-4">
                 {template.description}
               </p>
-              <button
-                onClick={() => handleEditTemplate(template)}
-                className="text-[#5D20B3] text-sm font-medium hover:underline"
-              >
-                Edit Template →
-              </button>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handlePreviewTemplate(template)}
+                    className="flex-1 bg-[#5D20B3] text-white px-3 py-2 rounded-lg text-xs hover:bg-[#4a1a8a] transition"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => handleCopyLink(template)}
+                    className="flex-1 bg-white text-[#5D20B3] border border-[#5D20B3] px-3 py-2 rounded-lg text-xs hover:bg-purple-50 transition"
+                  >
+                    {copySuccess === template.id ? "✓ Copied!" : "🔗 Copy Link"}
+                  </button>
+                </div>
+                <button
+                  onClick={() => handleEditTemplate(template)}
+                  className="text-[#5D20B3] text-sm font-medium hover:underline text-left"
+                >
+                  Edit Template →
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -300,8 +331,15 @@ export default function JobFormsPage() {
 
       {/* Create New Form Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+        <div 
+          className="fixed inset-0 bg-black/10 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowCreateModal(false);
+            setNewFormTitle('');
+            setNewFormDescription('');
+          }}
+        >
+          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-2xl font-bold mb-4">
               Create New Form Template
             </h2>
@@ -355,8 +393,14 @@ export default function JobFormsPage() {
 
       {/* View Submission Modal */}
       {showViewModal && selectedSubmission && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black/10 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowViewModal(false);
+            setSelectedSubmission(null);
+          }}
+        >
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-2xl font-bold mb-4">Application Details</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -441,10 +485,130 @@ export default function JobFormsPage() {
         </div>
       )}
 
+      {/* Preview Modal */}
+      {showPreviewModal && selectedTemplate && (
+        <div 
+          className="fixed inset-0 bg-black/10 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowPreviewModal(false);
+            setSelectedTemplate(null);
+          }}
+        >
+          <div className="bg-white rounded-xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-3xl font-bold mb-2">
+                  {selectedTemplate.title}
+                </h2>
+                <p className="text-gray-600">Application Form Preview</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setSelectedTemplate(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Candidate Form Preview */}
+            <div className="space-y-6">
+              <div className="bg-purple-50 border-l-4 border-[#5D20B3] p-4 rounded">
+                <p className="text-sm text-gray-700">
+                  📝 This is how candidates will see the application form
+                </p>
+              </div>
+
+              <form className="space-y-5">
+                {selectedTemplate.fields.map((field, index) => (
+                  <div key={index}>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {field}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    {field.toLowerCase().includes("resume") ||
+                    field.toLowerCase().includes("portfolio") ? (
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#5D20B3] transition cursor-pointer">
+                        <div className="text-gray-400 mb-2">📎</div>
+                        <p className="text-sm text-gray-600">
+                          Click to upload or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          PDF, DOC, DOCX (Max 5MB)
+                        </p>
+                      </div>
+                    ) : field.toLowerCase().includes("experience") ||
+                      field.toLowerCase().includes("description") ? (
+                      <textarea
+                        placeholder={`Enter your ${field.toLowerCase()}...`}
+                        rows={4}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3] focus:border-transparent"
+                        disabled
+                      />
+                    ) : (
+                      <input
+                        type={
+                          field.toLowerCase().includes("email")
+                            ? "email"
+                            : field.toLowerCase().includes("phone")
+                              ? "tel"
+                              : "text"
+                        }
+                        placeholder={`Enter your ${field.toLowerCase()}...`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3] focus:border-transparent"
+                        disabled
+                      />
+                    )}
+                  </div>
+                ))}
+
+                <div className="pt-4">
+                  <button
+                    type="button"
+                    className="w-full bg-[#5D20B3] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#4a1a8a] transition cursor-not-allowed opacity-70"
+                    disabled
+                  >
+                    Submit Application
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="flex gap-3 mt-8 pt-6 border-t">
+              <button
+                onClick={() => handleCopyLink(selectedTemplate)}
+                className="flex-1 bg-white text-[#5D20B3] border border-[#5D20B3] px-4 py-2 rounded-lg hover:bg-purple-50 transition"
+              >
+                {copySuccess === selectedTemplate.id
+                  ? "✓ Link Copied!"
+                  : "🔗 Copy Form Link"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setSelectedTemplate(null);
+                }}
+                className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Template Modal */}
       {showEditTemplateModal && selectedTemplate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black/10 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowEditTemplateModal(false);
+            setSelectedTemplate(null);
+          }}
+        >
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-2xl font-bold mb-4">
               Edit Template: {selectedTemplate.title}
             </h2>
