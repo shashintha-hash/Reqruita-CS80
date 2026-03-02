@@ -228,9 +228,10 @@ export default function JobFormsPage() {
   };
 
   // Filter submissions by job role
-  const filteredSubmissions = filterJobRole === "all"
-    ? submissions
-    : submissions.filter((s) => s.jobRole === filterJobRole);
+  const filteredSubmissions =
+    filterJobRole === "all"
+      ? submissions
+      : submissions.filter((s) => s.jobRole === filterJobRole);
 
   // Sort submissions
   const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
@@ -263,7 +264,9 @@ export default function JobFormsPage() {
         {/* Filters */}
         <div className="flex gap-4 mb-6 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Sort By:</label>
+            <label className="text-sm font-medium text-gray-700">
+              Sort By:
+            </label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as "latest" | "oldest")}
@@ -275,7 +278,9 @@ export default function JobFormsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Job Role:</label>
+            <label className="text-sm font-medium text-gray-700">
+              Job Role:
+            </label>
             <select
               value={filterJobRole}
               onChange={(e) => setFilterJobRole(e.target.value)}
@@ -305,31 +310,31 @@ export default function JobFormsPage() {
           <tbody className="divide-y">
             {sortedSubmissions.length > 0 ? (
               sortedSubmissions.map((submission) => (
-              <tr key={submission.id} className="hover:bg-gray-50">
-                <td className="py-4">{submission.date}</td>
-                <td className="py-4">{submission.jobRole}</td>
-                <td className="py-4">{submission.name}</td>
-                <td className="py-4">{submission.email}</td>
-                <td className="py-4">
-                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                    {submission.status}
-                  </span>
-                </td>
-                <td className="py-4 flex gap-2">
-                  <button
-                    onClick={() => handleViewSubmission(submission)}
-                    className="bg-[#5D20B3] text-white px-3 py-1 rounded text-xs hover:bg-[#4a1a8a]"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleDownload(submission)}
-                    className="border border-gray-300 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-50"
-                  >
-                    Download
-                  </button>
-                </td>
-              </tr>
+                <tr key={submission.id} className="hover:bg-gray-50">
+                  <td className="py-4">{submission.date}</td>
+                  <td className="py-4">{submission.jobRole}</td>
+                  <td className="py-4">{submission.name}</td>
+                  <td className="py-4">{submission.email}</td>
+                  <td className="py-4">
+                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                      {submission.status}
+                    </span>
+                  </td>
+                  <td className="py-4 flex gap-2">
+                    <button
+                      onClick={() => handleViewSubmission(submission)}
+                      className="bg-[#5D20B3] text-white px-3 py-1 rounded text-xs hover:bg-[#4a1a8a]"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleDownload(submission)}
+                      className="border border-gray-300 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-50"
+                    >
+                      Download
+                    </button>
+                  </td>
+                </tr>
               ))
             ) : (
               <tr>
