@@ -34,6 +34,8 @@ export default function JobFormsPage() {
   const [newFormTitle, setNewFormTitle] = useState("");
   const [newFormDescription, setNewFormDescription] = useState("");
   const [copySuccess, setCopySuccess] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<"latest" | "oldest">("latest");
+  const [filterJobRole, setFilterJobRole] = useState<string>("all");
 
   const [submissions] = useState<Submission[]>([
     {
@@ -225,6 +227,18 @@ export default function JobFormsPage() {
     alert(`Downloading submission for ${submission.name}`);
   };
 
+  // Filter submissions by job role
+  const filteredSubmissions = filterJobRole === "all"
+    ? submissions
+    : submissions.filter((s) => s.jobRole === filterJobRole);
+
+  // Sort submissions
+  const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return sortBy === "latest" ? dateB - dateA : dateA - dateB;
+  });
+
   return (
     <div className="space-y-8">
       <div>
@@ -246,6 +260,37 @@ export default function JobFormsPage() {
           </button>
         </div>
 
+        {/* Filters */}
+        <div className="flex gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort By:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "latest" | "oldest")}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3] text-sm"
+            >
+              <option value="latest">Latest</option>
+              <option value="oldest">Oldest</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Job Role:</label>
+            <select
+              value={filterJobRole}
+              onChange={(e) => setFilterJobRole(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3] text-sm"
+            >
+              <option value="all">All Job Roles</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.title}>
+                  {template.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="text-gray-400 border-b">
@@ -258,7 +303,8 @@ export default function JobFormsPage() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {submissions.map((submission) => (
+            {sortedSubmissions.length > 0 ? (
+              sortedSubmissions.map((submission) => (
               <tr key={submission.id} className="hover:bg-gray-50">
                 <td className="py-4">{submission.date}</td>
                 <td className="py-4">{submission.jobRole}</td>
@@ -284,7 +330,14 @@ export default function JobFormsPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-gray-500">
+                  No applications found for the selected filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
