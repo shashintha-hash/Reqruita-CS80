@@ -238,7 +238,7 @@ export default function SessionsPage() {
   const [scheduleTime, setScheduleTime] = useState("");
 
   // Container 4: Past Interviews
-  const [pastInterviews] = useState<PastInterview[]>([
+  const [pastInterviews, setPastInterviews] = useState<PastInterview[]>([
     {
       id: 1,
       candidateName: "Michael Davis",
@@ -296,6 +296,15 @@ export default function SessionsPage() {
   const [pastInterviewGradeFilter, setPastInterviewGradeFilter] =
     useState<string>("all");
 
+  // Edit interview modal states
+  const [showEditInterviewModal, setShowEditInterviewModal] = useState(false);
+  const [selectedInterview, setSelectedInterview] =
+    useState<PastInterview | null>(null);
+  const [editRemarks, setEditRemarks] = useState("");
+  const [editGrade, setEditGrade] = useState<
+    "Pass" | "Fail" | "Next Stage" | "On Hold"
+  >("Pass");
+
   const handleAssignCandidate = (candidate: Candidate) => {
     setSelectedCandidate(candidate);
     setShowAssignModal(true);
@@ -347,6 +356,30 @@ export default function SessionsPage() {
       setShowScheduleModal(false);
       alert(
         `Interview scheduled for ${selectedAssigned.candidateName}! Email invitation sent.`,
+      );
+    }
+  };
+
+  const handleEditInterview = (interview: PastInterview) => {
+    setSelectedInterview(interview);
+    setEditRemarks(interview.remarks);
+    setEditGrade(interview.grade);
+    setShowEditInterviewModal(true);
+  };
+
+  const handleSaveInterviewEdit = () => {
+    if (selectedInterview) {
+      setPastInterviews(
+        pastInterviews.map((interview) =>
+          interview.id === selectedInterview.id
+            ? { ...interview, remarks: editRemarks, grade: editGrade }
+            : interview,
+        ),
+      );
+      setShowEditInterviewModal(false);
+      setSelectedInterview(null);
+      alert(
+        `Interview details updated for ${selectedInterview.candidateName}!`,
       );
     }
   };
@@ -694,10 +727,18 @@ export default function SessionsPage() {
                   {interview.grade}
                 </span>
               </div>
-              <p className="text-sm text-gray-700 mt-3">
+              <p className="text-sm text-gray-700 mt-3 mb-3">
                 <span className="font-medium">Remarks:</span>{" "}
                 {interview.remarks}
               </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEditInterview(interview)}
+                  className="bg-[#5D20B3] text-white px-4 py-2 rounded text-xs hover:bg-[#4a1a8a]"
+                >
+                  View Details & Edit
+                </button>
+              </div>
             </div>
           ))}
           {getFilteredPastInterviews().length === 0 && (
@@ -840,6 +881,92 @@ export default function SessionsPage() {
                 </button>
                 <button
                   onClick={() => setShowScheduleModal(false)}
+                  className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Interview Modal */}
+      {showEditInterviewModal && selectedInterview && (
+        <div
+          className="fixed inset-0 bg-black/10 flex items-center justify-center z-50"
+          onClick={() => setShowEditInterviewModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl p-6 w-full max-w-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold mb-4">
+              Interview Details - {selectedInterview.candidateName}
+            </h2>
+
+            {/* Interview Details Display */}
+            <div className="space-y-3 mb-6 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <p className="text-xs text-gray-600 font-medium">
+                  Candidate Name
+                </p>
+                <p className="text-sm font-bold">
+                  {selectedInterview.candidateName}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 font-medium">
+                  Job Position
+                </p>
+                <p className="text-sm">{selectedInterview.jobPosition}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 font-medium">
+                  Interview Date
+                </p>
+                <p className="text-sm">{selectedInterview.interviewDate}</p>
+              </div>
+            </div>
+
+            {/* Editable Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Interview Result
+                </label>
+                <select
+                  value={editGrade}
+                  onChange={(e) => setEditGrade(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3]"
+                >
+                  <option value="Pass">Pass</option>
+                  <option value="Fail">Fail</option>
+                  <option value="Next Stage">Next Stage</option>
+                  <option value="On Hold">On Hold</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Remarks
+                </label>
+                <textarea
+                  value={editRemarks}
+                  onChange={(e) => setEditRemarks(e.target.value)}
+                  placeholder="Add or update interview remarks..."
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5D20B3]"
+                />
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSaveInterviewEdit}
+                  className="flex-1 bg-[#5D20B3] text-white px-4 py-2 rounded-lg hover:bg-[#4a1a8a]"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={() => setShowEditInterviewModal(false)}
                   className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
                 >
                   Cancel
