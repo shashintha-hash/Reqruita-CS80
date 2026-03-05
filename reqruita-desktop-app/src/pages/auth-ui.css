@@ -2460,9 +2460,8 @@ body.rq-noscr {
 
 .fe-bc-sep {
   color: rgba(255, 255, 255, 0.3);
-  font-size: 13px;
-  padding: 0 1px;
   flex-shrink: 0;
+  display: block;
 }
 
 .fe-bc-part {

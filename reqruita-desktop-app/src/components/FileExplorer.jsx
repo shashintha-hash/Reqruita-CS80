@@ -243,7 +243,11 @@ export default function FileExplorer({ onClose, onOpenPDF }) {
                 <div className="fe-breadcrumb">
                     {crumbs.map((crumb, i) => (
                         <React.Fragment key={crumb.path}>
-                            {i > 0 && <span className="fe-bc-sep">â€º</span>}
+                            {i > 0 && (
+                                <svg className="fe-bc-sep" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                            )}
                             <button
                                 className={`fe-bc-part ${i === crumbs.length - 1 ? "fe-bc-active" : ""}`}
                                 onClick={() => {
