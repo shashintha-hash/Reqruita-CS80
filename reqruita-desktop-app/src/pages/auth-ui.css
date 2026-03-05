@@ -2162,6 +2162,7 @@ body.rq-noscr {
 .jm-google-close {
   width: 32px;
   height: 32px;
+  padding: 0;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.08);
@@ -2424,6 +2425,7 @@ body.rq-noscr {
 .fe-nav-btn {
   width: 30px;
   height: 30px;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.07);
