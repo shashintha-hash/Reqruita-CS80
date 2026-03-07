@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({
@@ -135,6 +136,18 @@ export default function DashboardLayout({
     return pathname.startsWith(href);
   };
 
+  useEffect(() => {
+    // Check for token in URL query params if redirected from landing page
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      localStorage.setItem("token", token);
+      // Clean up the URL securely
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, []);
+
   return (
     <div className="bg-gradient-to-br from-gray-50 to-gray-100 flex h-screen overflow-hidden w-full">
       {/* Sidebar */}
@@ -170,14 +183,13 @@ export default function DashboardLayout({
             <Link
               key={item.label}
               href={item.href}
-              className={`group w-full flex items-center gap-3 text-left py-3.5 px-4 rounded-xl transition-all duration-200 ${
-                isActive(item.href)
+              className={`group w - full flex items - center gap - 3 text - left py - 3.5 px - 4 rounded - xl transition - all duration - 200 ${isActive(item.href)
                   ? "bg-white text-[#5D20B3] font-semibold shadow-lg transform scale-[1.02]"
                   : "text-white/90 hover:bg-white/15 hover:text-white hover:translate-x-1"
-              }`}
+                } `}
             >
               <span
-                className={`transition-transform duration-200 ${isActive(item.href) ? "" : "group-hover:scale-110"}`}
+                className={`transition - transform duration - 200 ${isActive(item.href) ? "" : "group-hover:scale-110"} `}
               >
                 {item.icon}
               </span>
