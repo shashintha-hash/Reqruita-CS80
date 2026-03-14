@@ -46,7 +46,13 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     // Chat
     const [chatInput, setChatInput] = useState("");
     const [messages, setMessages] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const chatSocketRef = useRef(null);
+    const seenIdsRef = useRef(new Set());
+    const panelRef = useRef(null);
+    const chatEndRef = useRef(null);
+    const panelOpenRef = useRef(false);
+    useEffect(() => { panelOpenRef.current = (panel === "chat"); }, [panel]);
 
     // Notes
     const [notesTab, setNotesTab] = useState("remarks"); // remarks | details
@@ -122,15 +128,24 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
         // Listen for incoming messages
         socket.on("chat-message", (msg) => {
-            // Convert backend message format to UI format
+            const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
+            if (seenIdsRef.current.has(msgId)) return;
+            seenIdsRef.current.add(msgId);
+
             const uiMsg = {
-                id: msg._id || Date.now(),
+                id: msgId,
                 who: msg.senderRole === "interviewer" ? "me" : "them",
-                name: msg.senderName,
+                name: msg.senderName || msg.senderRole,
                 text: msg.message,
-                time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             };
             setMessages((prev) => [...prev, uiMsg]);
+
+            // Notify if from other person and chat isn't open
+            if (msg.senderRole !== "interviewer" && !panelOpenRef.current) {
+                setUnreadCount((n) => n + 1);
+                addToast?.(`${msg.senderName || "Candidate"}: ${msg.message}`, "info");
+            }
         });
 
         // Cleanup on unmount
@@ -147,18 +162,32 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
             .then((res) => res.json())
             .then((data) => {
                 if (Array.isArray(data)) {
-                    const uiMessages = data.map(msg => ({
-                        id: msg._id,
-                        who: msg.senderRole === "interviewer" ? "me" : "them",
-                        name: msg.senderName,
-                        text: msg.message,
-                        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                    }));
+                    const uiMessages = data.map((msg) => {
+                        const id = msg._id;
+                        seenIdsRef.current.add(id);
+                        return {
+                            id,
+                            who: msg.senderRole === "interviewer" ? "me" : "them",
+                            name: msg.senderName || msg.senderRole,
+                            text: msg.message,
+                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        };
+                    });
                     setMessages(uiMessages);
                 }
             })
             .catch(() => { });
     }, [meetingId]);
+
+    // Auto-scroll chat to bottom on new messages
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    // Clear unread count when chat panel is opened
+    useEffect(() => {
+        if (panel === "chat") setUnreadCount(0);
+    }, [panel]);
 
     // Attach local stream to local preview
     useEffect(() => {
@@ -313,10 +342,21 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         const text = chatInput.trim();
         if (!text || !chatSocketRef.current) return;
 
+        const tempId = `opt_${Date.now()}`;
+        seenIdsRef.current.add(tempId);
+        const optimistic = {
+            id: tempId,
+            who: "me",
+            name: "Interviewer",
+            text,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, optimistic]);
+
         chatSocketRef.current.emit("chat-message", {
             interviewId: meetingId,
             senderRole: "interviewer",
-            senderName: "Interviewer", // or use session user name
+            senderName: "Interviewer",
             message: text,
         });
 
@@ -494,6 +534,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                                                 <div className="mt-bubble">{m.text}</div>
                                             </div>
                                         ))}
+                                        <div ref={chatEndRef} />
                                     </div>
 
                                     <div className="mt-chat-input">
@@ -653,10 +694,13 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                     </button>
 
                     {/* Chat */}
-                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => togglePanel("chat")} title="Chat">
+                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => setPanel(panel === "chat" ? null : "chat")} title="Chat" style={{ position: 'relative' }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
+                        {unreadCount > 0 && panel !== "chat" && (
+                            <span className="mt-icon-badge" style={{ background: '#ef4444' }}>{unreadCount}</span>
+                        )}
                         <span className="mt-icon-label">Chat</span>
                     </button>
 

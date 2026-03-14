@@ -273,20 +273,29 @@ io.on("connection", (socket) => {
         const { interviewId, senderRole, senderName, message } = data;
         if (!interviewId || !message) return;
 
+        // Build the message payload immediately so we can broadcast
+        const broadcastMsg = {
+            _id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            interviewId,
+            senderRole,
+            senderName: senderName || senderRole,
+            message,
+            createdAt: new Date().toISOString(),
+        };
+
+        // Always broadcast to the room RIGHT AWAY (don't wait for DB)
+        io.to(`chat:${interviewId}`).emit("chat-message", broadcastMsg);
+
+        // Persist to MongoDB in the background — failure is non-fatal
         try {
-            const saved = await ChatMessage.create({
+            await ChatMessage.create({
                 interviewId,
                 senderRole,
-                senderName,
+                senderName: senderName || senderRole,
                 message,
             });
-
-            if (saved) {
-                // Emit 'chat-message' to match the interviewee's expectation
-                io.to(`chat:${interviewId}`).emit("chat-message", saved);
-            }
         } catch (err) {
-            console.error("Failed to save chat message:", err);
+            console.error("Failed to save chat message to DB (message was still delivered):", err.message);
         }
     });
 });
