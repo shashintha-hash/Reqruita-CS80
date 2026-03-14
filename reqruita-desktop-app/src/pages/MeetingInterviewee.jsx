@@ -4,6 +4,7 @@ import "./auth-ui.css";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config";
 import { useWebRTC } from "../webrtc/useWebRTC";
+import FileExplorer from "../components/FileExplorer";
 
 /**
  * MeetingInterviewee.jsx (FINAL - WebRTC + Candidate Google Window + Screen Share)
@@ -34,8 +35,10 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     // UI state
     const [error, setError] = useState("");
-    const [isSharing, setIsSharing] = useState(false);
-    const [activePanel, setActivePanel] = useState(null); // 'files' | null
+    const [activePanel, setActivePanel] = useState(null); // 'files' | 'pdf' | null
+    const [googleOpen, setGoogleOpen] = useState(false);
+    const [pdfSrc, setPdfSrc] = useState(null);
+    const [pdfName, setPdfName] = useState("");
 
     //chat UI
     const [chatOpen, setChatOpen] = useState(false);
@@ -246,11 +249,37 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 } catch (e) { }
             } else {
                 await startScreenShare();
+                // When sharing starts, we also want to ensure workspace is open for convenience
+                try {
+                    window.reqruita?.openWorkspace?.();
+                } catch (e) { }
             }
         } catch (e) {
             console.error("Screen share failed:", e);
             setError("Screen share failed. Please check permissions / Electron settings.");
         }
+    }
+
+    function toggleGoogle() {
+        setGoogleOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                setActivePanel(null); // Close files if opening google
+                try { window.reqruita?.openWorkspace?.(); } catch (e) { }
+            }
+            return next;
+        });
+    }
+
+    function toggleFiles() {
+        setActivePanel((prev) => {
+            const next = prev === 'files' ? null : 'files';
+            if (next === 'files') {
+                setGoogleOpen(false); // Close google if opening files
+                try { window.reqruita?.openWorkspace?.(); } catch (e) { }
+            }
+            return next;
+        });
     }
 
     function leave() {
@@ -314,6 +343,74 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                                 <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 300, textAlign: 'center' }}>
                                     Your standalone workspace window is being shared with the interviewer.
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Inline Google Panel Overlay */}
+                        {googleOpen && (
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
+                                <div className="jm-google-bar">
+                                    <div className="jm-google-badge sm">G</div>
+                                    <div style={{ flex: 1, fontWeight: 800, fontSize: 13, color: 'rgba(255,255,255,0.92)' }}>Google Workspace</div>
+                                    <button className="jm-google-close" onClick={() => setGoogleOpen(false)}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                            <line x1="18" y1="6" x2="6" y2="18" />
+                                            <line x1="6" y1="6" x2="18" y2="18" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <iframe
+                                    className="jm-google-frame"
+                                    title="Google"
+                                    src="https://www.google.com/webhp?igu=1"
+                                    referrerPolicy="no-referrer"
+                                />
+                            </div>
+                        )}
+
+                        {/* Inline File Explorer Panel Overlay */}
+                        {activePanel === 'files' && (
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 11 }}>
+                                <FileExplorer
+                                    onClose={() => setActivePanel(null)}
+                                    onOpenPDF={(src, name) => {
+                                        setPdfSrc(src);
+                                        setPdfName(name);
+                                        setActivePanel('pdf');
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Inline PDF Viewer Panel Overlay */}
+                        {activePanel === 'pdf' && (
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 12 }}>
+                                <div className="jm-google-bar">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                                    </svg>
+                                    <div style={{ flex: 1, fontWeight: 800, fontSize: 13, color: 'rgba(255,255,255,0.92)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {pdfName}
+                                    </div>
+                                    <button
+                                        className="jm-google-close"
+                                        style={{ marginLeft: 4, flexShrink: 0 }}
+                                        onClick={() => {
+                                            if (pdfSrc?.startsWith('blob:')) URL.revokeObjectURL(pdfSrc);
+                                            setActivePanel('files');
+                                        }}
+                                        title="Back to File Explorer"
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="15 18 9 12 15 6" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <iframe
+                                    className="jm-google-frame"
+                                    title={pdfName}
+                                    src={pdfSrc}
+                                />
                             </div>
                         )}
                     </div>
@@ -432,10 +529,20 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         <span className="mt-icon-label">{camOff ? "Start" : "Stop"}</span>
                     </button>
 
+                    {/* Google Search Panel */}
+                    <button
+                        className={`mt-icon-btn ${googleOpen ? "mt-icon-active" : ""}`}
+                        onClick={toggleGoogle}
+                        title={googleOpen ? "Close Google Search" : "Open Google Search"}
+                    >
+                        <div className="jm-google-badge sm" style={{ marginBottom: 4 }}>G</div>
+                        <span className="mt-icon-label">{googleOpen ? "Google ✓" : "Google"}</span>
+                    </button>
+
                     {/* File Explorer */}
                     <button
                         className={`mt-icon-btn mt-icon-files ${activePanel === 'files' ? "mt-icon-active" : ""}`}
-                        onClick={() => setActivePanel((p) => (p === 'files' ? null : 'files'))}
+                        onClick={toggleFiles}
                         title={activePanel === 'files' ? "Close File Explorer" : "Open File Explorer"}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
