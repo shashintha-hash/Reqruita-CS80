@@ -44,10 +44,14 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
     const [chatOpen, setChatOpen] = useState(false);
     const [chatInput, setChatInput] = useState("");
     const [messages, setMessages] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const chatEndRef = useRef(null);
+    const seenIdsRef = useRef(new Set());
 
     // Socket ref for chat
     const chatSocketRef = useRef(null);
+    const chatOpenRef = useRef(false);
+    useEffect(() => { chatOpenRef.current = chatOpen; }, [chatOpen]);
 
     // Candidate display name (later replace with real input)
     const candidateName = session?.candidateName || session?.name || "Candidate";
@@ -77,14 +81,28 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
         // Listen for incoming messages 
         socket.on("chat-message", (msg) => {
+            const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
+            // Deduplicate: skip if we already added this message optimistically
+            if (seenIdsRef.current.has(msgId)) return;
+            seenIdsRef.current.add(msgId);
+
             const uiMsg = {
-                id: msg._id || Date.now(),
+                id: msgId,
                 who: msg.senderRole === "interviewee" ? "me" : "them",
-                name: msg.senderName,
+                name: msg.senderName || msg.senderRole,
                 text: msg.message,
                 time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             };
+
             setMessages((prev) => [...prev, uiMsg]);
+
+            // If this message is from the OTHER person and chat is closed → toast + badge
+            if (msg.senderRole !== "interviewee") {
+                if (!chatOpenRef.current) {
+                    setUnreadCount((n) => n + 1);
+                    addToast?.(`${msg.senderName || "Interviewer"}: ${msg.message}`, "info");
+                }
+            }
         });
 
         // Cleanup on unmount
@@ -101,13 +119,17 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             .then((res) => res.json())
             .then((data) => {
                 if (Array.isArray(data)) {
-                    const uiMessages = data.map((msg) => ({
-                        id: msg._id,
-                        who: msg.senderRole === "interviewee" ? "me" : "them",
-                        name: msg.senderName,
-                        text: msg.message,
-                        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    }));
+                    const uiMessages = data.map((msg) => {
+                        const id = msg._id;
+                        seenIdsRef.current.add(id);
+                        return {
+                            id,
+                            who: msg.senderRole === "interviewee" ? "me" : "them",
+                            name: msg.senderName || msg.senderRole,
+                            text: msg.message,
+                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        };
+                    });
                     setMessages(uiMessages);
                 }
             })
@@ -119,15 +141,32 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    //toggle chat panel
+    // Clear unread badge when chat is opened
+    useEffect(() => {
+        if (chatOpen) setUnreadCount(0);
+    }, [chatOpen]);
+
+    // Toggle chat panel
     function toggleChatPanel() {
         setChatOpen((prev) => !prev);
     }
 
-    // Send chat message
+    // Send chat message — add optimistically so sender sees it immediately
     function sendChatMessage() {
         const text = chatInput.trim();
         if (!text || !chatSocketRef.current) return;
+
+        const tempId = `opt_${Date.now()}`;
+        seenIdsRef.current.add(tempId); // prevent server echo from doubling it
+
+        const optimistic = {
+            id: tempId,
+            who: "me",
+            name: candidateName,
+            text,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, optimistic]);
 
         chatSocketRef.current.emit("chat-message", {
             interviewId: meetingId,
@@ -136,8 +175,6 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             message: text,
         });
 
-        // Socket listener on "chat-message" from server will add the
-        // message to state so we don't push a duplicate here.
         setChatInput("");
     }
 
@@ -348,7 +385,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 </span>
             </div>
 
-            <div className={`jm-row ${chatOpen ? "jm-chat-open" : ""}`}>
+            <div className="jm-row">
                 {/* Main area */}
                 <div className="jm-main">
                     <div className="jm-share">
@@ -466,52 +503,59 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         <div className="jm-label">Interviewer</div>
                     </div>
                 </div>
+            </div>
 
-                {/* Chat Panel – sibling of main + side, not inside side */}
-                {chatOpen && (
-                    <aside className="mt-side mt-side-enter">
-                        <div className="mt-side-head">
-                            <div className="mt-side-title">Chat</div>
-                            <button className="mt-side-close" onClick={toggleChatPanel}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
+            {/* ── Horizontal Chat Overlay (above footer) ── */}
+            {chatOpen && (
+                <div className="jm-chat-overlay mt-side-enter">
+                    <div className="jm-chat-overlay-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            <span className="mt-side-title">Chat</span>
+                        </div>
+                        <button className="mt-side-close" onClick={toggleChatPanel}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="jm-chat-overlay-body">
+                        <div className="jm-chat-messages">
+                            {messages.length === 0 && (
+                                <div className="mt-empty" style={{ marginTop: 12 }}>No messages yet. Say hello! 👋</div>
+                            )}
+                            {messages.map((m) => (
+                                <div key={m.id} className={`mt-msg ${m.who}`}>
+                                    <div className="mt-msgmeta">
+                                        <span>{m.name}</span>
+                                        <span>{m.time}</span>
+                                    </div>
+                                    <div className="mt-bubble">{m.text}</div>
+                                </div>
+                            ))}
+                            <div ref={chatEndRef} />
+                        </div>
+                        <div className="jm-chat-input-row">
+                            <input
+                                autoFocus
+                                className="mt-chat-field"
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder="Type a message and press Enter…"
+                                onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
+                            />
+                            <button className="mt-send" onClick={sendChatMessage} disabled={!chatInput.trim()}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                                 </svg>
                             </button>
                         </div>
-                        <div className="mt-side-body" style={{ padding: 0 }}>
-                            <div className="mt-chat">
-                                <div className="mt-chat-list">
-                                    {messages.map((m) => (
-                                        <div key={m.id} className={`mt-msg ${m.who}`}>
-                                            <div className="mt-msgmeta">
-                                                <span>{m.name}</span>
-                                                <span>{m.time}</span>
-                                            </div>
-                                            <div className="mt-bubble">{m.text}</div>
-                                        </div>
-                                    ))}
-                                    <div ref={chatEndRef} />
-                                </div>
-                                <div className="mt-chat-input">
-                                    <input
-                                        className="mt-chat-field"
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        placeholder="Type a message…"
-                                        onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
-                                    />
-                                    <button className="mt-send" onClick={sendChatMessage} disabled={!chatInput.trim()}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
-                )}
-            </div>
+                    </div>
+                </div>
+            )}
 
 
             {/* Footer Toolbar */}
@@ -592,11 +636,14 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         )}
                         <span className="mt-icon-label">{sharing ? "Stop" : "Share"}</span>
                     </button>
-                    {/*Chat*/}
-                    <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={toggleChatPanel} title="Chat">
+                    {/* Chat */}
+                    <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={toggleChatPanel} title="Chat" style={{ position: 'relative' }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
+                        {unreadCount > 0 && !chatOpen && (
+                            <span className="mt-icon-badge" style={{ background: '#ef4444' }}>{unreadCount}</span>
+                        )}
                         <span className="mt-icon-label">Chat</span>
                     </button>
                 </div>
