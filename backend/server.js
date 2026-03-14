@@ -159,6 +159,19 @@ app.post("/api/participants/allow", (req, res) => {
     });
 });
 
+// POST /api/participants/join
+// Simply adds a new participant with 'waiting' status
+app.post("/api/participants/join", (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+    const id = "p_" + Math.random().toString(36).substr(2, 9);
+    
+    db.run("INSERT INTO participants (id, name, status) VALUES (?, ?, ?)", [id, name, "waiting"], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        getAllParticipants(res, "Joined successfully");
+    });
+});
+
 // POST /api/participants/reject
 // (Your old version deleted; keeping delete to match your current UI)
 // Upgrade later: mark status='rejected' instead of delete.
@@ -192,46 +205,17 @@ app.post("/api/participants/complete", (req, res) => {
         }
     );
 });
-
-// POST /api/participants/join
-app.post("/api/participants/join", (req, res) => {
-    const nameRaw = req.body?.name;
-
-    if (!nameRaw) return res.status(400).json({ error: "Name is required" });
-
-    const name = String(nameRaw).trim();
-    if (!name) return res.status(400).json({ error: "Name is required" });
-    if (name.length > 50)
-        return res.status(400).json({ error: "Name is too long (max 50)" });
-
-    const id =
-        "u_" +
-        Date.now().toString(36) +
-        "_" +
-        Math.random().toString(36).slice(2, 7);
-
-    db.run(
-        "INSERT INTO participants (id, name, status) VALUES (?, ?, 'waiting')",
-        [id, name],
-        function (err) {
-            if (err) return res.status(500).json({ error: err.message });
-            getAllParticipants(res, "Joined");
-        }
-    );
-
 /* GET /api/chat/{interviewId} */
-const ChatMessage =require("./ChatMessage");
-app.get("/api/chat/:interviewId",async(req,res)=>{
-    try{
-        const messages=await ChatMessage.find({
-            interviewId:req.params.interviewId,
-        }).sort({createdAt:1});
-        res.json(messages);}
-    catch(err){
-        res.status(500).json({error:"Failed to load chat"});
-        }
-    });
-
+const ChatMessage = require("./ChatMessage");
+app.get("/api/chat/:interviewId", async (req, res) => {
+    try {
+        const messages = await ChatMessage.find({
+            interviewId: req.params.interviewId,
+        }).sort({ createdAt: 1 });
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to load chat" });
+    }
 });
 
 
@@ -280,27 +264,41 @@ io.on("connection", (socket) => {
     
     /*-------------------- SOCKET.IO (CHAT) --------------------*/
     
-    const ChatMessage =require("./ChatMessage");
     socket.on("join-chat",({interviewId}) =>{
         if(!interviewId) return;
         socket.join(`chat:${interviewId}`);
     });
 
     socket.on("chat-message", async (data) => {
-    const { interviewId, senderRole, senderName, message } = data;
-    if (!interviewId || !message) return;
+        const { interviewId, senderRole, senderName, message, clientId } = data;
+        if (!interviewId || !message) return;
 
-    const saved = await ChatMessage.create({
-     interviewId,
-     senderRole,
-     senderName,
-     message,
-  });
+        // Build the message payload immediately so we can broadcast
+        const broadcastMsg = {
+            _id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            interviewId,
+            senderRole,
+            senderName: senderName || senderRole,
+            message,
+            clientId, // Echo back for client-side deduplication
+            createdAt: new Date().toISOString(),
+        };
 
-    if (saved) {
-        io.to(`chat:${interviewId}`).emit("new-chat-message", saved);
-    }
-});
+        // Always broadcast to the room RIGHT AWAY (don't wait for DB)
+        io.to(`chat:${interviewId}`).emit("chat-message", broadcastMsg);
+
+        // Persist to MongoDB in the background — failure is non-fatal
+        try {
+            await ChatMessage.create({
+                interviewId,
+                senderRole,
+                senderName: senderName || senderRole,
+                message,
+            });
+        } catch (err) {
+            console.error("Failed to save chat message to DB (message was still delivered):", err.message);
+        }
+    });
 });
 
 // -------------------- START SERVER --------------------

@@ -1,6 +1,7 @@
 // src/pages/MeetingInterviewer.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./auth-ui.css";
+import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config";
 import { useWebRTC } from "../webrtc/useWebRTC";
 
@@ -44,10 +45,14 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
     // Chat
     const [chatInput, setChatInput] = useState("");
-    const [messages, setMessages] = useState([
-        { id: 1, who: "them", name: "Interviewee", text: "Hi! Can you hear me okay?", time: "09:12" },
-        { id: 2, who: "me", name: "You", text: "Yes, loud and clear. Let’s start.", time: "09:12" },
-    ]);
+    const [messages, setMessages] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const chatSocketRef = useRef(null);
+    const seenIdsRef = useRef(new Set());
+    const panelRef = useRef(null);
+    const chatEndRef = useRef(null);
+    const panelOpenRef = useRef(false);
+    useEffect(() => { panelOpenRef.current = (panel === "chat"); }, [panel]);
 
     // Notes
     const [notesTab, setNotesTab] = useState("remarks"); // remarks | details
@@ -109,6 +114,84 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         document.body.classList.add("rq-noscr");
         return () => document.body.classList.remove("rq-noscr");
     }, []);
+
+    // chat socket connection
+    useEffect(() => {
+        if (!meetingId) return;
+
+        // Create socket connection ONLY for chat
+        const socket = io(BACKEND_URL);
+        chatSocketRef.current = socket;
+
+        // Join chat room
+        socket.emit("join-chat", { interviewId: meetingId });
+
+        // Listen for incoming messages
+        socket.on("chat-message", (msg) => {
+            const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
+            const clientId = msg.clientId;
+
+            if ((clientId && seenIdsRef.current.has(clientId)) || seenIdsRef.current.has(msgId)) return;
+            
+            if (clientId) seenIdsRef.current.add(clientId);
+            seenIdsRef.current.add(msgId);
+
+            const uiMsg = {
+                id: msgId,
+                who: msg.senderRole === "interviewer" ? "me" : "them",
+                name: msg.senderName || msg.senderRole,
+                text: msg.message,
+                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            };
+            setMessages((prev) => [...prev, uiMsg]);
+
+            // Notify if from other person and chat isn't open
+            if (msg.senderRole !== "interviewer" && !panelOpenRef.current) {
+                setUnreadCount((n) => n + 1);
+                addToast?.(`${msg.senderName || "Candidate"}: ${msg.message}`, "info");
+            }
+        });
+
+        // Cleanup on unmount
+        return () => {
+            socket.disconnect();
+        };
+    }, [meetingId]);
+
+    // Load chat history
+    useEffect(() => {
+        if (!meetingId) return;
+
+        fetch(`${BACKEND_URL}/api/chat/${meetingId}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (Array.isArray(data)) {
+                    const uiMessages = data.map((msg) => {
+                        const id = msg._id;
+                        seenIdsRef.current.add(id);
+                        return {
+                            id,
+                            who: msg.senderRole === "interviewer" ? "me" : "them",
+                            name: msg.senderName || msg.senderRole,
+                            text: msg.message,
+                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        };
+                    });
+                    setMessages(uiMessages);
+                }
+            })
+            .catch(() => { });
+    }, [meetingId]);
+
+    // Auto-scroll chat to bottom on new messages
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    // Clear unread count when chat panel is opened
+    useEffect(() => {
+        if (panel === "chat") setUnreadCount(0);
+    }, [panel]);
 
     // Attach local stream to local preview
     useEffect(() => {
@@ -261,12 +344,27 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     // Chat send
     function sendMessage() {
         const text = chatInput.trim();
-        if (!text) return;
+        if (!text || !chatSocketRef.current) return;
 
-        const now = new Date();
-        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const tempId = `opt_${Date.now()}`;
+        seenIdsRef.current.add(tempId);
+        const optimistic = {
+            id: tempId,
+            who: "me",
+            name: "Interviewer",
+            text,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, optimistic]);
 
-        setMessages((m) => [...m, { id: Date.now(), who: "me", name: "You", text, time }]);
+        chatSocketRef.current.emit("chat-message", {
+            interviewId: meetingId,
+            senderRole: "interviewer",
+            senderName: "Interviewer",
+            message: text,
+            clientId: tempId,
+        });
+
         setChatInput("");
     }
 
@@ -441,6 +539,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                                                 <div className="mt-bubble">{m.text}</div>
                                             </div>
                                         ))}
+                                        <div ref={chatEndRef} />
                                     </div>
 
                                     <div className="mt-chat-input">
@@ -600,10 +699,13 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                     </button>
 
                     {/* Chat */}
-                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => togglePanel("chat")} title="Chat">
+                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => setPanel(panel === "chat" ? null : "chat")} title="Chat" style={{ position: 'relative' }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
+                        {unreadCount > 0 && panel !== "chat" && (
+                            <span className="mt-icon-badge" style={{ background: '#ef4444' }}>{unreadCount}</span>
+                        )}
                         <span className="mt-icon-label">Chat</span>
                     </button>
 

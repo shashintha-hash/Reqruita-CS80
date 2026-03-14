@@ -1,8 +1,10 @@
-// electron/main.cjs
 const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut, shell, protocol, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+
+// Set the application name BEFORE app is ready to ensure correct userData path
+app.name = "Reqruita";
 
 // Helps screen share during dev on http://localhost
 app.commandLine.appendSwitch("enable-usermedia-screen-capturing");
@@ -14,6 +16,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let win;
+let workspaceWin;
 
 function createWindow() {
     win = new BrowserWindow({
@@ -43,13 +46,14 @@ function setupDisplayMediaHandler() {
                     types: ["screen", "window"],
                 });
 
-                // Prefer capturing OUR Electron app window so the interviewer
-                // sees only the app content (Google iframe), not the full desktop.
-                const winTitle = win?.getTitle() || "";
+                // Prioritize capturing "Reqruita Workspace" so the interviewer 
+                // sees only the professional content (Google/Files), not the video call.
                 const source =
-                    sources.find((src) => winTitle && src.name === winTitle) ||
+                    sources.find((src) => src.name === "Reqruita Workspace") ||
+                    sources.find((src) => win && src.name === win.getTitle()) ||
                     sources.find((src) => src.id?.toLowerCase().startsWith("window:")) ||
                     sources[0];
+
                 if (!source) return callback({}); // deny cleanly
 
                 callback({ video: source, audio: false });
@@ -97,6 +101,43 @@ function setupInterviewModeIPC() {
 
         // If you used setClosable(false) above:
         // win.setClosable(true);
+    });
+}
+
+/**
+ * Workspace management (Detached Google/Files)
+ */
+function setupWorkspaceIPC() {
+    ipcMain.handle("rq:open-workspace", () => {
+        if (workspaceWin) {
+            workspaceWin.focus();
+            return;
+        }
+
+        workspaceWin = new BrowserWindow({
+            width: 1000,
+            height: 750,
+            title: "Reqruita Workspace",
+            webPreferences: {
+                preload: path.join(__dirname, "preload.cjs"),
+                contextIsolation: true,
+                nodeIntegration: false,
+            },
+        });
+
+        // Load same URL but with a flag so App.jsx renders only MeetingWorkspace
+        workspaceWin.loadURL("http://localhost:5173?view=workspace");
+
+        workspaceWin.on("closed", () => {
+            workspaceWin = null;
+        });
+    });
+
+    ipcMain.handle("rq:close-workspace", () => {
+        if (workspaceWin) {
+            workspaceWin.close();
+            workspaceWin = null;
+        }
     });
 }
 
@@ -207,6 +248,7 @@ app.whenReady().then(() => {
     setupInterviewModeIPC();
     setupFileExplorerIPC();
     setupEmergencyUnlockShortcut();
+    setupWorkspaceIPC();
 
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
