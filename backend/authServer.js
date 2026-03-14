@@ -12,8 +12,8 @@ console.log("Starting Auth Server...");
 
 require('dotenv').config();
 
-const MONGO_URI = process.env.MONGO_URI;
-const JWT_SECRET = process.env.JWT_SECRET;
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/reqruita";
+const JWT_SECRET = process.env.JWT_SECRET || "your_super_secret_jwt_key_here";
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log(" Connected to MongoDB Atlas"))

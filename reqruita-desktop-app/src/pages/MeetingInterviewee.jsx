@@ -35,18 +35,23 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     // UI state
     const [error, setError] = useState("");
-    // activePanel: null | 'google' | 'files' | 'pdf'
-    const [activePanel, setActivePanel] = useState(null);
+    const [activePanel, setActivePanel] = useState(null); // 'files' | 'pdf' | null
+    const [googleOpen, setGoogleOpen] = useState(false);
     const [pdfSrc, setPdfSrc] = useState(null);
     const [pdfName, setPdfName] = useState("");
 
-    //chat UI
+    // Chat UI
     const [chatOpen, setChatOpen] = useState(false);
     const [chatInput, setChatInput] = useState("");
     const [messages, setMessages] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const chatEndRef = useRef(null);
+    const seenIdsRef = useRef(new Set());
 
-    //socket ref for chat
+    // Socket ref for chat
     const chatSocketRef = useRef(null);
+    const chatOpenRef = useRef(false);
+    useEffect(() => { chatOpenRef.current = chatOpen; }, [chatOpen]);
 
     // Candidate display name (later replace with real input)
     const candidateName = session?.candidateName || session?.name || "Candidate";
@@ -56,6 +61,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         localCamStream,
         localScreenStream,
         remoteCamStream,
+        remoteScreenStream,
         startScreenShare,
         stopScreenShare,
         setMicEnabled,
@@ -63,7 +69,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
     } = useWebRTC({ meetingId, role: "interviewee" });
 
     //chat shocket connection
-     useEffect(() => {
+    useEffect(() => {
         if (!meetingId) return;
 
         // Create socket connection ONLY for chat
@@ -73,9 +79,34 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         // Join chat room (same interviewId as interviewer)
         socket.emit("join-chat", { interviewId: meetingId });
 
-        // Listen for incoming messages
+        // Listen for incoming messages 
         socket.on("chat-message", (msg) => {
-            setMessages((prev) => [...prev, msg]);
+            const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
+            const clientId = msg.clientId;
+
+            // Deduplicate: skip if we already added this message optimistically (by clientId or msgId)
+            if ((clientId && seenIdsRef.current.has(clientId)) || seenIdsRef.current.has(msgId)) return;
+            
+            if (clientId) seenIdsRef.current.add(clientId);
+            seenIdsRef.current.add(msgId);
+
+            const uiMsg = {
+                id: msgId,
+                who: msg.senderRole === "interviewee" ? "me" : "them",
+                name: msg.senderName || msg.senderRole,
+                text: msg.message,
+                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            };
+
+            setMessages((prev) => [...prev, uiMsg]);
+
+            // If this message is from the OTHER person and chat is closed → toast + badge
+            if (msg.senderRole !== "interviewee") {
+                if (!chatOpenRef.current) {
+                    setUnreadCount((n) => n + 1);
+                    addToast?.(`${msg.senderName || "Interviewer"}: ${msg.message}`, "info");
+                }
+            }
         });
 
         // Cleanup on unmount
@@ -84,34 +115,70 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         };
     }, [meetingId]);
 
-    //Load chat history
-     useEffect(() => {
+    // Load chat history
+    useEffect(() => {
         if (!meetingId) return;
 
         fetch(`${BACKEND_URL}/api/chat/${meetingId}`)
             .then((res) => res.json())
-            .then(setMessages)
-            .catch(() => {});
+            .then((data) => {
+                if (Array.isArray(data)) {
+                    const uiMessages = data.map((msg) => {
+                        const id = msg._id;
+                        seenIdsRef.current.add(id);
+                        return {
+                            id,
+                            who: msg.senderRole === "interviewee" ? "me" : "them",
+                            name: msg.senderName || msg.senderRole,
+                            text: msg.message,
+                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        };
+                    });
+                    setMessages(uiMessages);
+                }
+            })
+            .catch(() => { });
     }, [meetingId]);
 
-    //toggle chat panel
-     function toggleChatPanel() {
-       setChatOpen((prev) => !prev);
-     }
+    // Auto-scroll chat to bottom on new messages
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
-    // Send chat message
+    // Clear unread badge when chat is opened
+    useEffect(() => {
+        if (chatOpen) setUnreadCount(0);
+    }, [chatOpen]);
+
+    // Toggle chat panel
+    function toggleChatPanel() {
+        setChatOpen((prev) => !prev);
+    }
+
+    // Send chat message — add optimistically so sender sees it immediately
     function sendChatMessage() {
         const text = chatInput.trim();
         if (!text || !chatSocketRef.current) return;
+
+        const tempId = `opt_${Date.now()}`;
+        seenIdsRef.current.add(tempId); // prevent server echo from doubling it
+
+        const optimistic = {
+            id: tempId,
+            who: "me",
+            name: candidateName,
+            text,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, optimistic]);
 
         chatSocketRef.current.emit("chat-message", {
             interviewId: meetingId,
             senderRole: "interviewee",
             senderName: candidateName,
             message: text,
+            clientId: tempId,
         });
-
-        setMessages((prev) => [...prev, { senderRole: "interviewee", senderName: candidateName, message: text }]);
 
         setChatInput("");
     }
@@ -128,6 +195,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         return () => {
             try {
                 window.reqruita?.exitInterviewMode?.();
+                window.reqruita?.closeWorkspace?.(); // Ensure workspace is closed on exit
             } catch (e) {
                 // ignore
             }
@@ -196,8 +264,18 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             return isSharing;
         });
         if (isSharing) {
-            // Auto-open google panel when screen share starts (if no panel is open)
-            setActivePanel((prev) => prev || 'google');
+            // Open detached workspace window
+            try {
+                window.reqruita?.openWorkspace?.();
+            } catch (e) {
+                // Fallback to embedded if not in Electron? 
+                // Currently just doing nothing, as the window is detached.
+            }
+        } else {
+            // Close detached workspace window
+            try {
+                window.reqruita?.closeWorkspace?.();
+            } catch (e) { }
         }
     }, [localScreenStream, addToast]);
 
@@ -211,6 +289,12 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         autoShareAttemptedRef.current = true;
         (async () => {
             try {
+                // Open workspace first so the main process can find it as a source
+                window.reqruita?.openWorkspace?.();
+                
+                // Wait for the window to be created and registered by the OS
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 await startScreenShare();
             } catch (err) {
                 console.error("Automatic screen share failed:", err);
@@ -232,7 +316,18 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             setError("");
             if (sharing) {
                 await stopScreenShare();
+                try {
+                    window.reqruita?.closeWorkspace?.();
+                } catch (e) { }
             } else {
+                // Ensure workspace is open first so main process can target it
+                try {
+                    window.reqruita?.openWorkspace?.();
+                } catch (e) { }
+
+                // Wait for the window to be registered by the OS
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 await startScreenShare();
             }
         } catch (e) {
@@ -241,10 +336,33 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         }
     }
 
+    function toggleGoogle() {
+        setGoogleOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                setActivePanel(null); // Close files if opening google
+                try { window.reqruita?.openWorkspace?.(); } catch (e) { }
+            }
+            return next;
+        });
+    }
+
+    function toggleFiles() {
+        setActivePanel((prev) => {
+            const next = prev === 'files' ? null : 'files';
+            if (next === 'files') {
+                setGoogleOpen(false); // Close google if opening files
+                try { window.reqruita?.openWorkspace?.(); } catch (e) { }
+            }
+            return next;
+        });
+    }
+
     function leave() {
         if (!window.confirm("Are you sure you want to leave the interview?")) return;
         try {
             window.reqruita?.exitInterviewMode?.();
+            window.reqruita?.closeWorkspace?.(); // Ensure workspace is closed on leaving
         } catch (e) { }
 
         try {
@@ -277,53 +395,40 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 <span className="mt-conn-text">
                     {hasRemote ? "Interviewer connected" : "Waiting for interviewer…"}
                 </span>
-                <span className="mt-conn-id">Meeting: {meetingId || "—"}</span>
+                <span className="mt-conn-text" style={{ marginLeft: 8, opacity: 0.6 }}>
+                    Meeting: {meetingId || "—"}
+                </span>
             </div>
 
             <div className="jm-row">
                 {/* Main area */}
                 <div className="jm-main">
-                    <div className="jm-google">
-                        {/* No panel open: show two launch cards */}
-                        {!activePanel && (
-                            <div className="jm-launch-row">
-                                {/* Google launch card */}
-                                <div className="jm-google-launch">
-                                    <div className="jm-google-badge">G</div>
-                                    <div className="jm-google-title">Google</div>
-                                    <div className="jm-google-sub">
-                                        Open Google for quick searches during the interview.
-                                    </div>
-                                    <button className="jm-google-btn" onClick={() => setActivePanel('google')}>
-                                        Open Google
-                                    </button>
+                    <div className="jm-share">
+                        {remoteScreenStream ? (
+                            <video
+                                autoPlay
+                                playsInline
+                                ref={(v) => v && (v.srcObject = remoteScreenStream)}
+                            />
+                        ) : (
+                            <div className="jm-share-placeholder">
+                                <div className="jm-google-badge">R</div>
+                                <div style={{ marginTop: 24, fontSize: 18, fontWeight: 800, color: 'rgba(255,255,255,0.9)' }}>
+                                    Sharing Workspace
                                 </div>
-
-                                {/* File Explorer launch card */}
-                                <div className="jm-files-launch">
-                                    <div className="jm-files-badge">
-                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                                        </svg>
-                                    </div>
-                                    <div className="jm-files-title">File Explorer</div>
-                                    <div className="jm-files-sub">
-                                        Browse and open files on your computer to show the interviewer.
-                                    </div>
-                                    <button className="jm-files-btn" onClick={() => setActivePanel('files')}>
-                                        Open Files
-                                    </button>
+                                <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 300, textAlign: 'center' }}>
+                                    Your standalone workspace window is being shared with the interviewer.
                                 </div>
                             </div>
                         )}
 
-                        {/* Google panel */}
-                        {activePanel === 'google' && (
-                            <div className="jm-google-shell">
+                        {/* Inline Google Panel Overlay */}
+                        {googleOpen && (
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
                                 <div className="jm-google-bar">
                                     <div className="jm-google-badge sm">G</div>
-                                    <div style={{ flex: 1, fontWeight: 800, fontSize: 13, color: 'rgba(255,255,255,0.92)' }}>Google</div>
-                                    <button className="jm-google-close" onClick={() => setActivePanel(null)} title="Close Google">
+                                    <div style={{ flex: 1, fontWeight: 800, fontSize: 13, color: 'rgba(255,255,255,0.92)' }}>Google Workspace</div>
+                                    <button className="jm-google-close" onClick={() => setGoogleOpen(false)}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                                             <line x1="18" y1="6" x2="6" y2="18" />
                                             <line x1="6" y1="6" x2="18" y2="18" />
@@ -339,21 +444,23 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                             </div>
                         )}
 
-                        {/* File Explorer panel */}
+                        {/* Inline File Explorer Panel Overlay */}
                         {activePanel === 'files' && (
-                            <FileExplorer
-                                onClose={() => setActivePanel(null)}
-                                onOpenPDF={(src, name) => {
-                                    setPdfSrc(src);
-                                    setPdfName(name);
-                                    setActivePanel('pdf');
-                                }}
-                            />
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 11 }}>
+                                <FileExplorer
+                                    onClose={() => setActivePanel(null)}
+                                    onOpenPDF={(src, name) => {
+                                        setPdfSrc(src);
+                                        setPdfName(name);
+                                        setActivePanel('pdf');
+                                    }}
+                                />
+                            </div>
                         )}
 
-                        {/* PDF panel – uses the same shell as Google */}
+                        {/* Inline PDF Viewer Panel Overlay */}
                         {activePanel === 'pdf' && (
-                            <div className="jm-google-shell">
+                            <div className="jm-google-shell" style={{ position: 'absolute', inset: 0, zIndex: 12 }}>
                                 <div className="jm-google-bar">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
@@ -372,20 +479,6 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                                     >
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <polyline points="15 18 9 12 15 6" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        className="jm-google-close"
-                                        onClick={() => {
-                                            if (pdfSrc?.startsWith('blob:')) URL.revokeObjectURL(pdfSrc);
-                                            setActivePanel(null);
-                                            setPdfSrc(null);
-                                        }}
-                                        title="Close"
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                            <line x1="18" y1="6" x2="6" y2="18" />
-                                            <line x1="6" y1="6" x2="18" y2="18" />
                                         </svg>
                                     </button>
                                 </div>
@@ -424,54 +517,61 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         )}
                         <div className="jm-label">Interviewer</div>
                     </div>
-                   
+                </div>
+            </div>
 
-                    {/* Chat panel */}
-                    {chatOpen && (
-                       <aside className="mt-side mt-side-enter">
-                        <div className="mt-side-head">
-                         <div className="mt-side-title">Chat</div>
+            {/* ── Horizontal Chat Overlay (above footer) ── */}
+            {chatOpen && (
+                <div className="jm-chat-overlay mt-side-enter">
+                    <div className="jm-chat-overlay-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            <span className="mt-side-title">Chat</span>
+                        </div>
                         <button className="mt-side-close" onClick={toggleChatPanel}>
-                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                         </svg>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
                         </button>
-                       </div>
-                       <div className="mt-side-body" style={{ padding: 0 }}>
-                        <div className="mt-chat">
-                         <div className="mt-chat-list">
-                          {messages.map((m,idx) => (
-                           <div key={idx} className={`mt-msg ${m.senderRole}`}>
-                            <div className="mt-msgmeta">
-                             <span>{m.senderName}</span>
-                             
-                           </div>
-                           <div className="mt-bubble">{m.message}</div>
-                           </div>
-                    ))}
-                     </div>
-                     <div className="mt-chat-input">
-                     <input
-                     className="mt-chat-field"
-                     value={chatInput}
-                     onChange={(e) => setChatInput(e.target.value)}
-                     placeholder="Type a message…"
-                     onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
-                    />
-                  <button className="mt-send" onClick={sendChatMessage} disabled={!chatInput.trim()}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                   </svg>
-                 </button>
-               </div>
-             </div>
-           </div>
-         </aside>
-    )}
- </div>
- </div>
-           
+                    </div>
+                    <div className="jm-chat-overlay-body">
+                        <div className="jm-chat-messages">
+                            {messages.length === 0 && (
+                                <div className="mt-empty" style={{ marginTop: 12 }}>No messages yet. Say hello! 👋</div>
+                            )}
+                            {messages.map((m) => (
+                                <div key={m.id} className={`mt-msg ${m.who}`}>
+                                    <div className="mt-msgmeta">
+                                        <span>{m.name}</span>
+                                        <span>{m.time}</span>
+                                    </div>
+                                    <div className="mt-bubble">{m.text}</div>
+                                </div>
+                            ))}
+                            <div ref={chatEndRef} />
+                        </div>
+                        <div className="jm-chat-input-row">
+                            <input
+                                autoFocus
+                                className="mt-chat-field"
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder="Type a message and press Enter…"
+                                onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
+                            />
+                            <button className="mt-send" onClick={sendChatMessage} disabled={!chatInput.trim()}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Footer Toolbar */}
             <div className="jm-footer">
@@ -505,17 +605,27 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                             </svg>
                         ) : (
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1-2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                                 <circle cx="12" cy="13" r="4" />
                             </svg>
                         )}
                         <span className="mt-icon-label">{camOff ? "Start" : "Stop"}</span>
                     </button>
 
+                    {/* Google Search Panel */}
+                    <button
+                        className={`mt-icon-btn ${googleOpen ? "mt-icon-active" : ""}`}
+                        onClick={toggleGoogle}
+                        title={googleOpen ? "Close Google Search" : "Open Google Search"}
+                    >
+                        <div className="jm-google-badge sm" style={{ marginBottom: 4 }}>G</div>
+                        <span className="mt-icon-label">{googleOpen ? "Google ✓" : "Google"}</span>
+                    </button>
+
                     {/* File Explorer */}
                     <button
                         className={`mt-icon-btn mt-icon-files ${activePanel === 'files' ? "mt-icon-active" : ""}`}
-                        onClick={() => setActivePanel((p) => (p === 'files' ? null : 'files'))}
+                        onClick={toggleFiles}
                         title={activePanel === 'files' ? "Close File Explorer" : "Open File Explorer"}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -541,13 +651,16 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                         )}
                         <span className="mt-icon-label">{sharing ? "Stop" : "Share"}</span>
                     </button>
-                    {/*Chat*/}
-                   <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={toggleChatPanel} title="Chat">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                   <span className="mt-icon-label">Chat</span>
-                  </button>
+                    {/* Chat */}
+                    <button className={`mt-icon-btn ${chatOpen ? "mt-icon-active" : ""}`} onClick={toggleChatPanel} title="Chat" style={{ position: 'relative' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        {unreadCount > 0 && !chatOpen && (
+                            <span className="mt-icon-badge" style={{ background: '#ef4444' }}>{unreadCount}</span>
+                        )}
+                        <span className="mt-icon-label">Chat</span>
+                    </button>
                 </div>
 
                 <button className="mt-end" onClick={leave}>
@@ -558,10 +671,10 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                     <span>Leave</span>
                 </button>
             </div>
-        
 
-         </div>
 
-         
+        </div>
+
+
     );
 }
