@@ -192,9 +192,6 @@ app.post("/api/participants/complete", (req, res) => {
         }
     );
 });
-
-});
-
 /* GET /api/chat/{interviewId} */
 const ChatMessage = require("./ChatMessage");
 app.get("/api/chat/:interviewId", async (req, res) => {
