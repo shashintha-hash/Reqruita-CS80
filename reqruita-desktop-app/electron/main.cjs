@@ -1,8 +1,10 @@
-// electron/main.cjs
 const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut, shell, protocol, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+
+// Set the application name BEFORE app is ready to ensure correct userData path
+app.name = "Reqruita";
 
 // Helps screen share during dev on http://localhost
 app.commandLine.appendSwitch("enable-usermedia-screen-capturing");
