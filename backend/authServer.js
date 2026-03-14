@@ -17,7 +17,14 @@ const JWT_SECRET = process.env.JWT_SECRET || "your_super_secret_jwt_key_here";
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log(" Connected to MongoDB Atlas"))
-    .catch(err => console.error(" MongoDB Connection Error:", err));
+    .catch(err => {
+        console.error(" MongoDB Connection Error:", err.message);
+        if (err.message.includes('querySrv ECONNREFUSED')) {
+            console.error(" [Troubleshooting Tip]: This is likely a DNS issue. Try restarting your router, switching to Google DNS (8.8.8.8), or checking if your IP is whitelisted in Atlas.");
+        } else if (err.message.includes('IP not whitelisted') || err.message.includes('Authentication failed')) {
+            console.error(" [Troubleshooting Tip]: Please ensure your current IP is whitelisted in MongoDB Atlas 'Network Access' tab.");
+        }
+    });
 
 // --- User Model ---
 const userSchema = new mongoose.Schema({
