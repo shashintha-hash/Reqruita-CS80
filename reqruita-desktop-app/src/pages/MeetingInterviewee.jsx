@@ -82,8 +82,12 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         // Listen for incoming messages 
         socket.on("chat-message", (msg) => {
             const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
-            // Deduplicate: skip if we already added this message optimistically
-            if (seenIdsRef.current.has(msgId)) return;
+            const clientId = msg.clientId;
+
+            // Deduplicate: skip if we already added this message optimistically (by clientId or msgId)
+            if ((clientId && seenIdsRef.current.has(clientId)) || seenIdsRef.current.has(msgId)) return;
+            
+            if (clientId) seenIdsRef.current.add(clientId);
             seenIdsRef.current.add(msgId);
 
             const uiMsg = {
@@ -173,6 +177,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             senderRole: "interviewee",
             senderName: candidateName,
             message: text,
+            clientId: tempId,
         });
 
         setChatInput("");

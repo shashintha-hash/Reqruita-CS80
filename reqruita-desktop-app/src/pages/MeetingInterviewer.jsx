@@ -129,7 +129,11 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         // Listen for incoming messages
         socket.on("chat-message", (msg) => {
             const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
-            if (seenIdsRef.current.has(msgId)) return;
+            const clientId = msg.clientId;
+
+            if ((clientId && seenIdsRef.current.has(clientId)) || seenIdsRef.current.has(msgId)) return;
+            
+            if (clientId) seenIdsRef.current.add(clientId);
             seenIdsRef.current.add(msgId);
 
             const uiMsg = {
@@ -358,6 +362,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
             senderRole: "interviewer",
             senderName: "Interviewer",
             message: text,
+            clientId: tempId,
         });
 
         setChatInput("");

@@ -270,7 +270,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("chat-message", async (data) => {
-        const { interviewId, senderRole, senderName, message } = data;
+        const { interviewId, senderRole, senderName, message, clientId } = data;
         if (!interviewId || !message) return;
 
         // Build the message payload immediately so we can broadcast
@@ -280,6 +280,7 @@ io.on("connection", (socket) => {
             senderRole,
             senderName: senderName || senderRole,
             message,
+            clientId, // Echo back for client-side deduplication
             createdAt: new Date().toISOString(),
         };
 
