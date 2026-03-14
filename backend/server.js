@@ -159,6 +159,19 @@ app.post("/api/participants/allow", (req, res) => {
     });
 });
 
+// POST /api/participants/join
+// Simply adds a new participant with 'waiting' status
+app.post("/api/participants/join", (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+    const id = "p_" + Math.random().toString(36).substr(2, 9);
+    
+    db.run("INSERT INTO participants (id, name, status) VALUES (?, ?, ?)", [id, name, "waiting"], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        getAllParticipants(res, "Joined successfully");
+    });
+});
+
 // POST /api/participants/reject
 // (Your old version deleted; keeping delete to match your current UI)
 // Upgrade later: mark status='rejected' instead of delete.
@@ -251,7 +264,6 @@ io.on("connection", (socket) => {
     
     /*-------------------- SOCKET.IO (CHAT) --------------------*/
     
-    const ChatMessage =require("./ChatMessage");
     socket.on("join-chat",({interviewId}) =>{
         if(!interviewId) return;
         socket.join(`chat:${interviewId}`);
