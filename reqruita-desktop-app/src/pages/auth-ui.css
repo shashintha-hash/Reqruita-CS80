@@ -2668,13 +2668,20 @@ body.rq-noscr {
 
 /* Files toolbar button active state */
 .mt-icon-btn.mt-icon-files {
-  border-color: rgba(16, 185, 129, 0.5);
+  border-color: rgba(234, 179, 8, 0.5);
+  color: #facc15;
+}
+
+.mt-icon-btn.mt-icon-files:hover {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.7);
+  color: #fde047;
 }
 
 .mt-icon-btn.mt-icon-files.mt-icon-active {
-  background: rgba(16, 185, 129, 0.22);
-  border-color: rgba(16, 185, 129, 0.6);
-  color: #6ee7b7;
+  background: rgba(234, 179, 8, 0.22);
+  border-color: rgba(234, 179, 8, 0.8);
+  color: #facc15;
 }
 
 /* Google button – Blue theme */
