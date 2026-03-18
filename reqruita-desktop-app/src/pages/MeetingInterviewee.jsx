@@ -117,30 +117,6 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         };
     }, [meetingId]);
 
-    // Load chat history
-    useEffect(() => {
-        if (!meetingId) return;
-
-        fetch(`${BACKEND_URL}/api/chat/${meetingId}`)
-            .then((res) => res.json())
-            .then((data) => {
-                if (Array.isArray(data)) {
-                    const uiMessages = data.map((msg) => {
-                        const id = msg._id;
-                        seenIdsRef.current.add(id);
-                        return {
-                            id,
-                            who: msg.senderRole === "interviewee" ? "me" : "them",
-                            name: msg.senderName || msg.senderRole,
-                            text: msg.message,
-                            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                        };
-                    });
-                    setMessages(uiMessages);
-                }
-            })
-            .catch(() => { });
-    }, [meetingId]);
 
     // ── Auto-scroll chat ──
     useEffect(() => {
