@@ -1641,9 +1641,9 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Save Session Details (JWT Token) to Local Storage (just in case they stay on same port)
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
+                    // Save Session Details (JWT Token) to Local Storage
+                    localStorage.setItem('reqruita_token', data.token);
+                    localStorage.setItem('reqruita_user', JSON.stringify(data.user));
 
                     // Role-Based Redirection with token
                     if (data.user.role === 'admin' || data.user.role === 'interviewer') {

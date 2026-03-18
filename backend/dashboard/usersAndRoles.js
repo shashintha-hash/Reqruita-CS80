@@ -22,6 +22,7 @@ module.exports = (User, authenticateToken) => {
     // Add New User Route - Admins only
     router.post('/add-user', authenticateToken, async (req, res) => {
         try {
+            console.log("POST /add-user Request Body:", req.body);
             if (req.user.role !== 'admin') {
                 return res.status(403).json({ message: "Access Denied: Requires Admin Role" });
             }
