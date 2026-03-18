@@ -463,8 +463,8 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                     </div>
                 </div>
 
-                {/* Side videos */}
-                <div className="jm-side">
+                {/* Side videos (Hidden during screen share to prevent hall of mirrors) */}
+                <div className="jm-side" style={{ display: sharing ? 'none' : 'flex' }}>
                     {/* Candidate video */}
                     <div className="jm-tile">
                         <video ref={localCamRef} autoPlay playsInline muted />

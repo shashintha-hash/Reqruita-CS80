@@ -59,6 +59,7 @@ function setupDisplayMediaHandler() {
                 console.log(`Available sources: ${sources.map((s) => s.name).join(", ")}`);
 
                 const source =
+                    sources.find((src) => src.name === "Reqruita-Workspace-Source") ||
                     sources.find((src) => src.name === "reqruita-desktop-app") ||
                     sources.find((src) => src.name?.toLowerCase().includes("reqruita")) ||
                     sources.find((src) => src.id?.startsWith("screen:")) || // entire screen as fallback
