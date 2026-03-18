@@ -79,6 +79,11 @@ const userSchema = new mongoose.Schema(
       enum: ['admin', 'interviewer', 'recruiter', 'hr manager', 'candidate'],
       required: true,
     },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
     isEmailVerified: { type: Boolean, default: false },
     emailVerificationOtpHash: { type: String, default: null },
     emailVerificationOtpExpiresAt: { type: Date, default: null },
@@ -251,6 +256,11 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    // Check account status
+    if (user.status === 'inactive') {
+      return res.status(403).json({ message: 'Your account has been deactivated. Please contact your administrator.' });
     }
 
     // If email not verified, send verification OTP
