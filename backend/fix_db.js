@@ -25,14 +25,19 @@ mongoose.connect(MONGO_URI)
         updates.status = 'active';
       }
       
-      if (!user.firstName) {
+      if (!user.firstName || user.firstName === 'Undefined') {
         const roleName = user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'User';
         updates.firstName = roleName;
       }
       
-      if (!user.lastName) {
+      if (!user.lastName || user.lastName === 'Undefined') {
         updates.lastName = 'Member';
       }
+
+      // Always update fullName if names exist or were just set
+      const fName = updates.firstName || user.firstName || 'User';
+      const lName = updates.lastName || user.lastName || 'Member';
+      updates.fullName = `${fName} ${lName}`;
 
       if (Object.keys(updates).length > 0) {
         await mongoose.connection.db.collection('users').updateOne(

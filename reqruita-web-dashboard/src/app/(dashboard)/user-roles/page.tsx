@@ -98,6 +98,7 @@ export default function UserRolesPage() {
         return;
       }
 
+      console.log("Sending Add User data:", { email, password, role, firstName, lastName });
       const res = await fetch("http://localhost:3003/api/dashboard/users/add-user", {
         method: "POST",
         headers: {
