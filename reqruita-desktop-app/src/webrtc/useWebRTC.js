@@ -84,19 +84,6 @@ export function useWebRTC({ meetingId, role }) {
         });
     };
 
-    const assignRemoteStream = (stream) => {
-        const hasAudioTrack = stream.getAudioTracks().length > 0;
-        if (hasAudioTrack) {
-            setRemoteCamStream((curCam) => (curCam?.id === stream.id ? curCam : stream));
-            setRemoteScreenStream((curScreen) => (curScreen?.id === stream.id ? null : curScreen));
-            watchRemoteStream(stream, "cam");
-        } else {
-            setRemoteScreenStream((curScreen) => (curScreen?.id === stream.id ? curScreen : stream));
-            setRemoteCamStream((curCam) => (curCam?.id === stream.id ? null : curCam));
-            watchRemoteStream(stream, "screen");
-        }
-    };
-
     useEffect(() => {
         let mounted = true;
 
@@ -130,13 +117,32 @@ export function useWebRTC({ meetingId, role }) {
                 }
             };
 
+            // Ensure we know the first video track (cam) vs subsequent (screen)
+            let firstVideoTrackId = null;
+
             // receive remote tracks
             pc.ontrack = (e) => {
                 const stream = e.streams?.[0];
                 if (!stream) return;
-                // Avoid race conditions by allowing all tracks to bundle into the stream
-                setTimeout(() => assignRemoteStream(stream), 200);
-                stream.onaddtrack = () => assignRemoteStream(stream);
+
+                if (e.track.kind === "video") {
+                    if (!firstVideoTrackId) {
+                        // First video track received is the camera
+                        firstVideoTrackId = e.track.id;
+                        setRemoteCamStream((cur) => (cur?.id === stream.id ? cur : stream));
+                    } else if (e.track.id !== firstVideoTrackId) {
+                        // Any other video track is a screen share
+                        setRemoteScreenStream((cur) => (cur?.id === stream.id ? cur : stream));
+                    }
+                }
+
+                // If remote stops screen sharing, the track ends
+                e.track.onended = () => {
+                    if (e.track.id !== firstVideoTrackId) {
+                        setRemoteScreenStream(null);
+                    }
+                };
+                e.track.oninactive = e.track.onended;
             };
 
             // only the interviewer will initiate offers
