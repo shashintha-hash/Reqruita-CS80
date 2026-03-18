@@ -141,7 +141,26 @@ export default function DashboardLayout({
     },
   ];
 
-  const currentUser = typeof window !== "undefined" ? getStoredUser() : null;
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Check for token in URL (passed from landing page)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      
+      if (urlToken) {
+        // Save the token and clean the URL
+        localStorage.setItem('reqruita_token', urlToken);
+        
+        // Remove token from URL for security and cleanliness
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+    
+    setCurrentUser(getStoredUser());
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -309,12 +328,12 @@ export default function DashboardLayout({
               >
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center font-bold text-white shadow-md">
                   {currentUser
-                    ? currentUser.firstName.charAt(0).toUpperCase()
+                    ? (currentUser.firstName || currentUser.fullName || currentUser.email || "U").charAt(0).toUpperCase()
                     : "U"}
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">
-                    {currentUser ? currentUser.fullName : "Admin User"}
+                    {currentUser ? (currentUser.fullName || currentUser.email) : "Admin User"}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
                     {currentUser?.role ?? "Administrator"}
