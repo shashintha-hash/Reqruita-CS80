@@ -46,6 +46,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     const chatSocketRef = useRef(null);
     const seenIdsRef = useRef(new Set());
     const panelRef = useRef(null);
+    const chatListRef = useRef(null);
     const chatEndRef = useRef(null);
     const panelOpenRef = useRef(false);
     useEffect(() => { panelOpenRef.current = (panel === "chat"); }, [panel]);
@@ -102,13 +103,13 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
             addToast?.("No candidate selected", "error");
             return;
         }
-        
+
         const payload = {
             interviewId: meetingId,
             participantId: currentCandidate.id,
             remark: remarks,
         };
-        
+
         console.log("Saving remark with payload:", payload);
 
         try {
@@ -226,7 +227,9 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
     // Auto-scroll chat to bottom on new messages
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (chatListRef.current) {
+            chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+        }
     }, [messages]);
 
     // Clear unread count when chat panel is opened
@@ -324,8 +327,16 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         setCamOff((v) => !v);
     }
 
-    function endInterview() {
+    async function endInterview() {
         if (!window.confirm("Are you sure you want to end the interview?")) return;
+        
+        // Clear chat history for this meeting
+        try {
+            await fetch(`${BACKEND_URL}/api/chat/${meetingId}`, { method: "DELETE" });
+        } catch (e) {
+            console.error("Failed to clear chat history:", e);
+        }
+        
         onEnd?.();
     }
 
@@ -588,7 +599,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                             {/* Chat */}
                             {panel === "chat" && (
                                 <div className="mt-chat">
-                                    <div className="mt-chat-list">
+                                    <div className="mt-chat-list" ref={chatListRef}>
                                         {messages.map((m) => (
                                             <div key={m.id} className={`mt-msg ${m.who}`}>
                                                 <div className="mt-msgmeta">
@@ -655,8 +666,8 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                                                     placeholder={currentCandidate ? `Write remarks for ${currentCandidate.name}…` : "Admit a candidate first…"}
                                                     disabled={!currentCandidate}
                                                 />
-                                                <button 
-                                                    className="rq-btn-primary" 
+                                                <button
+                                                    className="rq-btn-primary"
                                                     style={{ marginTop: 12, width: '100%', padding: '12px' }}
                                                     onClick={saveRemark}
                                                     disabled={!currentCandidate || !remarks.trim()}
