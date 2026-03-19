@@ -226,6 +226,16 @@ app.get("/api/chat/:interviewId", async (req, res) => {
     }
 });
 
+/* DELETE /api/chat/{interviewId} */
+app.delete("/api/chat/:interviewId", async (req, res) => {
+    try {
+        await ChatMessage.deleteMany({ interviewId: req.params.interviewId });
+        res.json({ message: "Chat history cleared" });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to clear chat" });
+    }
+});
+
 // -------------------- REMARKS API --------------------
 
 // POST /api/remarks
