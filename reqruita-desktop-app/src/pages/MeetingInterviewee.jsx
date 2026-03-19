@@ -85,7 +85,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
         // Clear local messages state on new session join
         setMessages([]);
-        
+
         // Join chat room (same interviewId as interviewer)
         socket.emit("join-chat", { interviewId: meetingId });
 
@@ -319,7 +319,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     async function handleConfirmLeave() {
         setShowLeaveConfirm(false);
-        
+
         try {
             await fetch(`${BACKEND_URL}/api/participants/leave`, {
                 method: "POST",
@@ -333,7 +333,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         try { window.reqruita?.exitInterviewMode?.(); } catch (e) { }
         try { stopScreenShare(); } catch (e) { }
         onLeave?.();
-        
+
         // If window close was pending, tell Electron to actually close
         if (isClosingRequest) {
             window.reqruita?.confirmClose?.();
