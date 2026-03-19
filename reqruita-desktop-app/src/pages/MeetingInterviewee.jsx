@@ -78,6 +78,9 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
         const socket = io(BACKEND_URL);
         chatSocketRef.current = socket;
 
+        // Clear local messages state on new session join
+        setMessages([]);
+        
         // Join chat room (same interviewId as interviewer)
         socket.emit("join-chat", { interviewId: meetingId });
 
