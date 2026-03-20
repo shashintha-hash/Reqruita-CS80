@@ -1,6 +1,7 @@
 // src/pages/MeetingInterviewer.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./auth-ui.css";
+import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config";
 import { useWebRTC } from "../webrtc/useWebRTC";
 
@@ -13,10 +14,6 @@ import { useWebRTC } from "../webrtc/useWebRTC";
  * ✅ Keeps:
  *   - Right panel toggles: Participants / Chat / Notes
  *   - Participants list from backend (polling every 2s)
- *
- * Backend requirements:
- *   - REST: /api/participants endpoints (your existing ones)
- *   - Socket.IO signaling: join-meeting + webrtc-signal (from the updated server.js)
  */
 
 export default function MeetingInterviewer({ session, onEnd, addToast }) {
@@ -44,10 +41,15 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
     // Chat
     const [chatInput, setChatInput] = useState("");
-    const [messages, setMessages] = useState([
-        { id: 1, who: "them", name: "Interviewee", text: "Hi! Can you hear me okay?", time: "09:12" },
-        { id: 2, who: "me", name: "You", text: "Yes, loud and clear. Let’s start.", time: "09:12" },
-    ]);
+    const [messages, setMessages] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const chatSocketRef = useRef(null);
+    const seenIdsRef = useRef(new Set());
+    const panelRef = useRef(null);
+    const chatListRef = useRef(null);
+    const chatEndRef = useRef(null);
+    const panelOpenRef = useRef(false);
+    useEffect(() => { panelOpenRef.current = (panel === "chat"); }, [panel]);
 
     // Notes
     const [notesTab, setNotesTab] = useState("remarks"); // remarks | details
@@ -67,10 +69,63 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
     // Derived lists
     const interviewing = useMemo(() => participants.filter((p) => p.status === "interviewing"), [participants]);
+    const currentCandidate = interviewing[0];
     const waiting = useMemo(() => participants.filter((p) => p.status === "waiting"), [participants]);
     const completed = useMemo(() => participants.filter((p) => p.status === "completed"), [participants]);
 
     const API_URL = `${BACKEND_URL}/api/participants`;
+
+    // Load remarks for current candidate
+    useEffect(() => {
+        if (currentCandidate?.id) {
+            console.log("Fetching remarks for candidate:", currentCandidate.id);
+            fetch(`${BACKEND_URL}/api/remarks/${currentCandidate.id}`)
+                .then((res) => {
+                    if (!res.ok) throw new Error("Failed to fetch remarks");
+                    return res.json();
+                })
+                .then((data) => {
+                    console.log("Loaded remark data:", data);
+                    setRemarks(data.remark || "");
+                })
+                .catch((err) => {
+                    console.error("Load remark error:", err);
+                    setRemarks("");
+                });
+        } else {
+            setRemarks("");
+        }
+    }, [currentCandidate?.id]);
+
+    async function saveRemark() {
+        if (!currentCandidate) {
+            console.error("No candidate selected for saving remarks");
+            addToast?.("No candidate selected", "error");
+            return;
+        }
+
+        const payload = {
+            interviewId: meetingId,
+            participantId: currentCandidate.id,
+            remark: remarks,
+        };
+
+        console.log("Saving remark with payload:", payload);
+
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/remarks`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to save");
+            addToast?.("Remark saved", "success");
+        } catch (err) {
+            console.error("Error saving remark:", err);
+            addToast?.(`Failed to save remark: ${err.message}`, "error");
+        }
+    }
 
     // Normalize backend responses:
     // - array => array
@@ -104,11 +159,83 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Handle Full Window for Interviewer (Electron)
+    useEffect(() => {
+        try {
+            window.reqruita?.enterInterviewerMode?.();
+        } catch (e) {
+            // ignore in browser
+        }
+        return () => {
+            try {
+                window.reqruita?.exitInterviewMode?.();
+            } catch (e) {
+                // ignore
+            }
+        };
+    }, []);
+
     // Keep meeting non-scroll
     useEffect(() => {
         document.body.classList.add("rq-noscr");
         return () => document.body.classList.remove("rq-noscr");
     }, []);
+
+    // chat socket connection
+    useEffect(() => {
+        if (!meetingId) return;
+
+        // Create socket connection ONLY for chat
+        const socket = io(BACKEND_URL);
+        chatSocketRef.current = socket;
+
+        // Join chat room
+        socket.emit("join-chat", { interviewId: meetingId });
+
+        // Listen for incoming messages
+        socket.on("chat-message", (msg) => {
+            const msgId = msg._id || msg.id || `${msg.senderRole}_${msg.message}_${msg.createdAt}`;
+            const clientId = msg.clientId;
+
+            if ((clientId && seenIdsRef.current.has(clientId)) || seenIdsRef.current.has(msgId)) return;
+
+            if (clientId) seenIdsRef.current.add(clientId);
+            seenIdsRef.current.add(msgId);
+
+            const uiMsg = {
+                id: msgId,
+                who: msg.senderRole === "interviewer" ? "me" : "them",
+                name: msg.senderName || msg.senderRole,
+                text: msg.message,
+                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            };
+            setMessages((prev) => [...prev, uiMsg]);
+
+            // Notify if from other person and chat isn't open
+            if (msg.senderRole !== "interviewer" && !panelOpenRef.current) {
+                setUnreadCount((n) => n + 1);
+                addToast?.(`${msg.senderName || "Candidate"}: ${msg.message}`, "info");
+            }
+        });
+
+        // Cleanup on unmount
+        return () => {
+            socket.disconnect();
+        };
+    }, [meetingId]);
+
+
+    // Auto-scroll chat to bottom on new messages
+    useEffect(() => {
+        if (chatListRef.current) {
+            chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    // Clear unread count when chat panel is opened
+    useEffect(() => {
+        if (panel === "chat") setUnreadCount(0);
+    }, [panel]);
 
     // Attach local stream to local preview
     useEffect(() => {
@@ -200,8 +327,29 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         setCamOff((v) => !v);
     }
 
-    function endInterview() {
+    async function endInterview() {
         if (!window.confirm("Are you sure you want to end the interview?")) return;
+        
+        // Mark current candidate as complete so the session is freed
+        if (currentCandidate) {
+            try {
+                await fetch(`${API_URL}/complete`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: currentCandidate.id }),
+                });
+            } catch (e) {
+                console.error("Failed to mark candidate as complete:", e);
+            }
+        }
+
+        // Clear chat history for this meeting
+        try {
+            await fetch(`${BACKEND_URL}/api/chat/${meetingId}`, { method: "DELETE" });
+        } catch (e) {
+            console.error("Failed to clear chat history:", e);
+        }
+        
         onEnd?.();
     }
 
@@ -218,6 +366,10 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                 body: JSON.stringify({ id }),
             });
             const data = await res.json();
+            if (!res.ok) {
+                addToast?.(data.error || "Failed to accept participant", "error");
+                return;
+            }
             setParticipants(normalizeParticipants(data));
             addToast?.("Participant accepted", "success");
         } catch (err) {
@@ -261,12 +413,27 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     // Chat send
     function sendMessage() {
         const text = chatInput.trim();
-        if (!text) return;
+        if (!text || !chatSocketRef.current) return;
 
-        const now = new Date();
-        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const tempId = `opt_${Date.now()}`;
+        seenIdsRef.current.add(tempId);
+        const optimistic = {
+            id: tempId,
+            who: "me",
+            name: "Interviewer",
+            text,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, optimistic]);
 
-        setMessages((m) => [...m, { id: Date.now(), who: "me", name: "You", text, time }]);
+        chatSocketRef.current.emit("chat-message", {
+            interviewId: meetingId,
+            senderRole: "interviewer",
+            senderName: "Interviewer",
+            message: text,
+            clientId: tempId,
+        });
+
         setChatInput("");
     }
 
@@ -274,37 +441,51 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     const hasRemoteScreen = !!remoteScreenStream;
     const totalParticipants = participants.length;
 
+    // Auto-hide connection status after 3 seconds
+    const [showConnStatus, setShowConnStatus] = useState(true);
+    useEffect(() => {
+        if (hasRemoteCam) {
+            setShowConnStatus(true);
+            const timer = setTimeout(() => setShowConnStatus(false), 3000);
+            return () => clearTimeout(timer);
+        } else {
+            setShowConnStatus(true);
+        }
+    }, [hasRemoteCam]);
+
     return (
         <div className="mt-wrap">
             {error && <div className="mt-err">{error}</div>}
 
             {/* Connection status indicator */}
-            <div className="mt-conn-status">
-                <span className={`mt-conn-dot ${hasRemoteCam ? "mt-conn-on" : "mt-conn-pulse"}`} />
-                <span className="mt-conn-text">
-                    {hasRemoteCam ? "Candidate connected" : "Waiting for candidate…"}
-                </span>
-                <span className="mt-conn-id">Meeting: {meetingId || "—"}</span>
-            </div>
+            {showConnStatus && (
+                <div className="mt-conn-status">
+                    <span className={`mt-conn-dot ${hasRemoteCam ? "mt-conn-on" : "mt-conn-pulse"}`} />
+                    <span className="mt-conn-text">
+                        {hasRemoteCam ? "Candidate connected" : "Waiting for candidate…"}
+                    </span>
+                    <span className="mt-conn-id">Meeting: {meetingId || "—"}</span>
+                </div>
+            )}
 
             {/* Stage + Right Panel */}
             <div className={`mt-mainrow ${panel ? "withSide" : ""}`}>
                 {/* Main Stage */}
-                <div className="mt-stage">
+                <div className={`mt-stage ${hasRemoteScreen ? "mt-sharing-active" : ""}`}>
                     {/* Main shared screen (remote screen share) */}
                     <div className="mt-share">
                         {hasRemoteScreen ? (
-                            <video ref={remoteScreenRef} autoPlay playsInline />
+                            <video ref={remoteScreenRef} autoPlay playsInline muted={false} />
                         ) : (
                             <div className="mt-share-placeholder">
                                 <div className="mt-ph-content">
-                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2 drop-shadow-sm">
                                         <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                                         <line x1="8" y1="21" x2="16" y2="21" />
                                         <line x1="12" y1="17" x2="12" y2="21" />
                                     </svg>
-                                    <div className="mt-ph-title">Waiting for screen share</div>
-                                    <div className="mt-ph-sub">The candidate's screen will appear here once they start sharing</div>
+                                    <div className="mt-ph-title">Waiting for session</div>
+                                    <div className="mt-ph-sub">Candidate screen share will appear here.</div>
                                 </div>
                             </div>
                         )}
@@ -313,7 +494,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                     {/* Interviewee cam tile (bottom-left) */}
                     <div className="mt-tile mt-tile-peer">
                         {hasRemoteCam ? (
-                            <video ref={remoteCamRef} autoPlay playsInline />
+                            <video ref={remoteCamRef} autoPlay playsInline muted={false} />
                         ) : (
                             <div className="mt-tile-ph">
                                 <div className="mt-tile-ph-avatar mt-tile-ph-pulse">
@@ -322,16 +503,16 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                                         <circle cx="12" cy="7" r="4" />
                                     </svg>
                                 </div>
-                                <span className="mt-tile-ph-text">Connecting…</span>
+                                <span className="mt-tile-ph-text" style={{ color: '#94a3b8' }}>Connecting…</span>
                             </div>
                         )}
-                        <div className="mt-tile-label">Interviewee</div>
+                        <div className="mt-tile-label">Candidate</div>
                     </div>
 
                     {/* Interviewer tile (bottom-right) */}
                     <div className="mt-tile mt-tile-self">
                         <video ref={localVideoRef} autoPlay playsInline muted />
-                        <div className="mt-tile-label">You (Interviewer)</div>
+                        <div className="mt-tile-label">You</div>
                     </div>
                 </div>
 
@@ -431,7 +612,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                             {/* Chat */}
                             {panel === "chat" && (
                                 <div className="mt-chat">
-                                    <div className="mt-chat-list">
+                                    <div className="mt-chat-list" ref={chatListRef}>
                                         {messages.map((m) => (
                                             <div key={m.id} className={`mt-msg ${m.who}`}>
                                                 <div className="mt-msgmeta">
@@ -441,6 +622,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                                                 <div className="mt-bubble">{m.text}</div>
                                             </div>
                                         ))}
+                                        <div ref={chatEndRef} />
                                     </div>
 
                                     <div className="mt-chat-input">
@@ -462,7 +644,7 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
                             {/* Notes */}
                             {panel === "notes" && (
-                                <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+                                <div style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%" }}>
                                     <div className="nt-topTabs">
                                         <button className={`nt-tab ${notesTab === "remarks" ? "active" : ""}`} onClick={() => setNotesTab("remarks")}>
                                             Remarks
@@ -474,26 +656,43 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
                                     <div className="nt-interviewerRow">
                                         <div className="nt-pillRow">
-                                            <div className="nt-namePill">
-                                                <div className="nt-avatarSm">R</div>
-                                                Robert Nachino
-                                            </div>
+                                            {currentCandidate ? (
+                                                <div className="nt-namePill">
+                                                    <div className="nt-avatarSm">{(currentCandidate.name || "?")[0]}</div>
+                                                    {currentCandidate.name}
+                                                </div>
+                                            ) : (
+                                                <div className="nt-namePill" style={{ opacity: 0.6 }}>
+                                                    No ongoing session
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     <div className="nt-body">
                                         {notesTab === "remarks" && (
-                                            <textarea
-                                                className="nt-textarea"
-                                                value={remarks}
-                                                onChange={(e) => setRemarks(e.target.value)}
-                                                placeholder="Write remarks here… (Saved locally for now)"
-                                            />
+                                            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                                                <textarea
+                                                    className="nt-textarea"
+                                                    value={remarks}
+                                                    onChange={(e) => setRemarks(e.target.value)}
+                                                    placeholder={currentCandidate ? `Write remarks for ${currentCandidate.name}…` : "Admit a candidate first…"}
+                                                    disabled={!currentCandidate}
+                                                />
+                                                <button
+                                                    className="rq-btn-primary"
+                                                    style={{ marginTop: 12, width: '100%', padding: '12px' }}
+                                                    onClick={saveRemark}
+                                                    disabled={!currentCandidate || !remarks.trim()}
+                                                >
+                                                    Save Remark
+                                                </button>
+                                            </div>
                                         )}
 
                                         {notesTab === "details" && (
                                             <div className="nt-profileCard">
-                                                <div className="nt-h1">Robert Nachino</div>
+                                                <div className="nt-h1">{currentCandidate?.name || "Robert Nachino"}</div>
                                                 <div className="nt-small">Software Engineer</div>
 
                                                 <div className="nt-h2">Contact</div>
@@ -600,10 +799,13 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                     </button>
 
                     {/* Chat */}
-                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => togglePanel("chat")} title="Chat">
+                    <button className={`mt-icon-btn ${panel === "chat" ? "mt-icon-active" : ""}`} onClick={() => setPanel(panel === "chat" ? null : "chat")} title="Chat" style={{ position: 'relative' }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
+                        {unreadCount > 0 && panel !== "chat" && (
+                            <span className="mt-icon-badge" style={{ background: '#ef4444' }}>{unreadCount}</span>
+                        )}
                         <span className="mt-icon-label">Chat</span>
                     </button>
 
@@ -640,7 +842,7 @@ function ParticipantRow({ name, status, actions }) {
     return (
         <div className="mt-p-row">
             <div className={`mt-avatar ${status === "interviewing" ? "mt-avatar-active" : ""}`}>{initial}</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
                 <div className="mt-p-name">{name}</div>
                 <div className="mt-p-sub">{statusLabel}</div>
             </div>
@@ -648,3 +850,4 @@ function ParticipantRow({ name, status, actions }) {
         </div>
     );
 }
+

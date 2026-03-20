@@ -1,8 +1,10 @@
-// electron/main.cjs
 const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut, shell, protocol, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+
+// Set the application name BEFORE app is ready to ensure correct userData path
+app.name = "Reqruita";
 
 // Helps screen share during dev on http://localhost
 app.commandLine.appendSwitch("enable-usermedia-screen-capturing");
@@ -14,11 +16,20 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let win;
+let workspaceWin;
 
 function createWindow() {
     win = new BrowserWindow({
         width: 1100,
         height: 700,
+        title: "Reqruita",
+        titleBarStyle: "hidden",
+        titleBarOverlay: {
+            color: "#4b2fb6",
+            symbolColor: "#ffffff",
+            height: 32,
+        },
+        autoHideMenuBar: true,
         webPreferences: {
             preload: path.join(__dirname, "preload.cjs"),
             contextIsolation: true,
@@ -43,15 +54,20 @@ function setupDisplayMediaHandler() {
                     types: ["screen", "window"],
                 });
 
-                // Prefer capturing OUR Electron app window so the interviewer
-                // sees only the app content (Google iframe), not the full desktop.
-                const winTitle = win?.getTitle() || "";
+                // Share the main interviewee Electron window so the interviewer
+                // sees exactly what the interviewee sees (Google, Files, etc.)
+                console.log(`Available sources: ${sources.map((s) => s.name).join(", ")}`);
+
                 const source =
-                    sources.find((src) => winTitle && src.name === winTitle) ||
-                    sources.find((src) => src.id?.toLowerCase().startsWith("window:")) ||
+                    sources.find((src) => src.name === "Reqruita-Workspace-Source") ||
+                    sources.find((src) => src.name === "reqruita-desktop-app") ||
+                    sources.find((src) => src.name?.toLowerCase().includes("reqruita")) ||
+                    sources.find((src) => src.id?.startsWith("screen:")) || // entire screen as fallback
                     sources[0];
+
                 if (!source) return callback({}); // deny cleanly
 
+                console.log(`Sharing source: ${source.name} (${source.id})`);
                 callback({ video: source, audio: false });
             } catch (err) {
                 console.error("Display media request failed:", err);
@@ -85,6 +101,25 @@ function setupInterviewModeIPC() {
         // win.setClosable(false);
     });
 
+    ipcMain.handle("rq:enter-interviewer-mode", () => {
+        if (!win) return;
+        win.setKiosk(false);
+        win.setFullScreen(false);
+        win.setResizable(true);
+        win.setMinimizable(true);
+        win.setMaximizable(true);
+        win.maximize();
+        // Allow the interviewer to toggle fullscreen manually if they want
+        win.setFullScreenable(true);
+
+        // Update title bar overlay for gray glass look
+        win.setTitleBarOverlay({
+            color: "#f8fafc", // Very light gray (slate-50)
+            symbolColor: "#475569", // Slate-600
+            height: 32,
+        });
+    });
+
     ipcMain.handle("rq:exit-interview-mode", () => {
         if (!win) return;
 
@@ -95,8 +130,62 @@ function setupInterviewModeIPC() {
         win.setResizable(true);
         win.setMinimizable(true);
 
+        // Restore purple title bar overlay
+        win.setTitleBarOverlay({
+            color: "#4b2fb6",
+            symbolColor: "#ffffff",
+            height: 32,
+        });
+
         // If you used setClosable(false) above:
         // win.setClosable(true);
+    });
+}
+
+/**
+ * Workspace management (Detached Google/Files)
+ */
+function setupWorkspaceIPC() {
+    ipcMain.handle("rq:open-workspace", (_event, panel) => {
+        const panelParam = panel ? `&panel=${panel}` : "";
+
+        if (workspaceWin) {
+            // Navigate to requested panel and re-focus
+            workspaceWin.loadURL(`http://localhost:5173?view=workspace${panelParam}`);
+            workspaceWin.focus();
+            return;
+        }
+
+        workspaceWin = new BrowserWindow({
+            width: 1000,
+            height: 750,
+            title: "Reqruita-Workspace-Source",
+            titleBarStyle: "hidden",
+            titleBarOverlay: {
+                color: "rgba(255, 255, 255, 0)", // Transparent overlay
+                symbolColor: "#1e293b",
+                height: 32,
+            },
+            webPreferences: {
+                preload: path.join(__dirname, "preload.cjs"),
+                contextIsolation: true,
+                nodeIntegration: false,
+            },
+        });
+
+        // Load same URL but with a flag so App.jsx renders only MeetingWorkspace
+        workspaceWin.loadURL(`http://localhost:5173?view=workspace${panelParam}`);
+
+        workspaceWin.on("closed", () => {
+            workspaceWin = null;
+        });
+    });
+
+    ipcMain.handle("rq:close-workspace", () => {
+        if (workspaceWin) {
+            workspaceWin.close();
+            workspaceWin = null;
+        }
     });
 }
 
@@ -207,6 +296,7 @@ app.whenReady().then(() => {
     setupInterviewModeIPC();
     setupFileExplorerIPC();
     setupEmergencyUnlockShortcut();
+    setupWorkspaceIPC();
 
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();

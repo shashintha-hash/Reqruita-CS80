@@ -7,6 +7,7 @@ import DeviceCheck from "./pages/DeviceCheck.jsx";
 
 import MeetingInterviewer from "./pages/MeetingInterviewer.jsx";
 import MeetingInterviewee from "./pages/MeetingInterviewee.jsx";
+import MeetingWorkspace from "./pages/MeetingWorkspace.jsx";
 
 import ToastContainer from "./components/Toast.jsx";
 import useToast from "./hooks/useToast.js";
@@ -27,8 +28,29 @@ const USERS = [
   },
 ];
 
+function AppHeader({ isWorkspace, isInterviewer }) {
+  const headerClass = isWorkspace 
+    ? "rq-header-glass" 
+    : isInterviewer 
+      ? "rq-header-interviewer" 
+      : "";
+      
+  return (
+    <div className={`rq-header ${headerClass}`}>
+      <div className="rq-header-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+        <span className="rq-header-title">Reqruita</span>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [step, setStep] = useState("role"); // role | login | devices | meeting
+  const [step, setStep] = useState("role"); // role | login | devices | meeting | workspace
   const [role, setRole] = useState(null); // "join" | "conduct"
   const [session, setSession] = useState(null);
   const [transitioning, setTransitioning] = useState(false);
@@ -38,6 +60,11 @@ export default function App() {
   const users = useMemo(() => USERS, []);
 
   useEffect(() => {
+    // Check if we are in the workspace view via URL check
+    if (window.location.search.includes("view=workspace")) {
+      setStep("workspace");
+    }
+    
     document.documentElement.style.background = "#fff";
     document.body.style.background = "#fff";
   }, []);
@@ -121,6 +148,10 @@ export default function App() {
   return (
     <>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <AppHeader 
+        isWorkspace={step === "workspace"} 
+        isInterviewer={step === "meeting" && role === "conduct"}
+      />
 
       <div className={`rq-page ${transitioning ? "rq-page-exit" : "rq-page-enter"}`}>
         {step === "role" && <RoleSelect onPickRole={onPickRole} />}
@@ -152,6 +183,8 @@ export default function App() {
           ) : (
             <MeetingInterviewee session={session} onLeave={onEnd} addToast={addToast} />
           ))}
+
+        {step === "workspace" && <MeetingWorkspace />}
       </div>
     </>
   );
