@@ -13,6 +13,8 @@ def predict():
 
     if "image" not in data:
         return jsonify({"error": "No image provided"}), 400
+    
+    
 
     result = predict_gaze(data["image"])
 
