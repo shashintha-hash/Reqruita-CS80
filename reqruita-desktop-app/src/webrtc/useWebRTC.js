@@ -11,13 +11,16 @@ const RTC_CONFIG = {
     ],
 };
 
-export function useWebRTC({ meetingId, role }) {
+export function useWebRTC({ meetingId, role, participantId }) {
     const socketRef = useRef(null);
     const pcRef = useRef(null);
     const peerIdRef = useRef(null);
 
     const [localCamStream, setLocalCamStream] = useState(null);
     const [localScreenStream, setLocalScreenStream] = useState(null);
+
+    const localCamStreamRef = useRef(null);
+    const localScreenStreamRef = useRef(null);
 
     const [remoteCamStream, setRemoteCamStream] = useState(null);
     const [remoteScreenStream, setRemoteScreenStream] = useState(null);
@@ -84,17 +87,6 @@ export function useWebRTC({ meetingId, role }) {
         });
     };
 
-    const assignRemoteStream = (stream) => {
-        const hasAudioTrack = stream.getAudioTracks().length > 0;
-        if (hasAudioTrack) {
-            setRemoteCamStream((curCam) => (curCam?.id === stream.id ? curCam : stream));
-            watchRemoteStream(stream, "cam");
-        } else {
-            setRemoteScreenStream((curScreen) => (curScreen?.id === stream.id ? curScreen : stream));
-            watchRemoteStream(stream, "screen");
-        }
-    };
-
     useEffect(() => {
         let mounted = true;
 
@@ -128,10 +120,32 @@ export function useWebRTC({ meetingId, role }) {
                 }
             };
 
+            // Ensure we know the first video track (cam) vs subsequent (screen)
+            let firstVideoTrackId = null;
+
             // receive remote tracks
             pc.ontrack = (e) => {
                 const stream = e.streams?.[0];
-                if (stream) assignRemoteStream(stream);
+                if (!stream) return;
+
+                if (e.track.kind === "video") {
+                    if (!firstVideoTrackId) {
+                        // First video track received is the camera
+                        firstVideoTrackId = e.track.id;
+                        setRemoteCamStream((cur) => (cur?.id === stream.id ? cur : stream));
+                    } else if (e.track.id !== firstVideoTrackId) {
+                        // Any other video track is a screen share
+                        setRemoteScreenStream((cur) => (cur?.id === stream.id ? cur : stream));
+                    }
+                }
+
+                // If remote stops screen sharing, the track ends
+                e.track.onended = () => {
+                    if (e.track.id !== firstVideoTrackId) {
+                        setRemoteScreenStream(null);
+                    }
+                };
+                e.track.oninactive = e.track.onended;
             };
 
             // only the interviewer will initiate offers
@@ -142,7 +156,11 @@ export function useWebRTC({ meetingId, role }) {
 
             // 3) local camera+mic
             const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            if (!mounted) return;
+            if (!mounted) {
+                cam.getTracks().forEach(t => t.stop());
+                return;
+            }
+            localCamStreamRef.current = cam;
             setLocalCamStream(cam);
 
             // add tracks to pc
@@ -205,7 +223,7 @@ export function useWebRTC({ meetingId, role }) {
             });
 
             // 5) join room
-            socket.emit("join-meeting", { meetingId, role });
+            socket.emit("join-meeting", { meetingId, role, participantId });
         }
 
         start().catch(console.error);
@@ -220,18 +238,22 @@ export function useWebRTC({ meetingId, role }) {
             } catch { }
 
             // stop local media
-            for (const s of [localCamStream, localScreenStream]) {
-                if (s) s.getTracks().forEach((t) => t.stop());
+            if (localCamStreamRef.current) {
+                localCamStreamRef.current.getTracks().forEach((t) => t.stop());
+            }
+            if (localScreenStreamRef.current) {
+                localScreenStreamRef.current.getTracks().forEach((t) => t.stop());
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [meetingId, role]);
+    }, [meetingId, role, participantId]);
 
     async function startScreenShare() {
         const pc = pcRef.current;
         if (!pc) return;
 
         const scr = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        localScreenStreamRef.current = scr;
         setLocalScreenStream(scr);
 
         const screenTrack = scr.getVideoTracks()[0];
@@ -251,8 +273,9 @@ export function useWebRTC({ meetingId, role }) {
         }
         screenSenderRef.current = null;
 
-        if (localScreenStream) {
-            localScreenStream.getTracks().forEach((t) => t.stop());
+        if (localScreenStreamRef.current) {
+            localScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+            localScreenStreamRef.current = null;
             setLocalScreenStream(null);
         }
         await requestScreenOffer();
