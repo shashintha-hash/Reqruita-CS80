@@ -217,7 +217,35 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 setError((prev) => prev || "Automatic screen share failed. Use Share Screen or grant permissions.");
             }
         })();
-    }, [meetingId, localCamStream, startScreenShare]);
+}, [meetingId, localCamStream, startScreenShare]);
+
+   //Gaze tracking effect- captures frames from local camera every 2 seconds and sends to backend for gaze prediction
+    useEffect(() => {
+    if (!localCamRef.current) return;
+
+    const interval = setInterval(async () => {
+        try {
+            const base64 = captureFrame(localCamRef.current);
+
+            const res = await fetch("http://127.0.0.1:5000/predict-gaze", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ image: base64 }),
+            });
+
+            const data = await res.json();
+
+            console.log("Gaze:", data);
+
+        } catch (err) {
+            console.error("Gaze error:", err);
+        }
+    }, 2000);
+
+    return () => clearInterval(interval);
+   }, []);
 
     function toggleMic() {
         setMicMuted((v) => !v);
@@ -240,6 +268,21 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
             setError("Screen share failed. Please check permissions / Electron settings.");
         }
     }
+
+    
+    //Frame capture function
+
+    function captureFrame(video) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+
+      return canvas.toDataURL("image/jpeg");
+    }
+
 
     function leave() {
         if (!window.confirm("Are you sure you want to leave the interview?")) return;
