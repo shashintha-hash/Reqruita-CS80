@@ -1,4 +1,4 @@
-const AUTH_API_BASE =
+export const AUTH_API_BASE =
   process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:3003";
 const USER_STORAGE_KEY = "reqruita_user";
 export const USER_UPDATED_EVENT = "reqruita:user-updated";
