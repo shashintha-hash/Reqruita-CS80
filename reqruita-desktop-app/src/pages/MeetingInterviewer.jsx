@@ -4,6 +4,7 @@ import "./auth-ui.css";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../config";
 import { useWebRTC } from "../webrtc/useWebRTC";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 /**
  * MeetingInterviewer.jsx (FINAL - WebRTC + Participants Panel)
@@ -57,6 +58,10 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
     // Participants state
     const [participants, setParticipants] = useState([]);
+
+    // Modal state
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [isClosingRequest, setIsClosingRequest] = useState(false);
 
     // ✅ WebRTC hook (local cam+mic + remote cam + remote screen)
     const {
@@ -173,6 +178,18 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                 // ignore
             }
         };
+    }, []);
+
+    // Listen for Electron close request
+    useEffect(() => {
+        if (!window.reqruita?.onCloseRequest) return;
+
+        const cleanup = window.reqruita.onCloseRequest(() => {
+            setIsClosingRequest(true);
+            setShowLeaveConfirm(true);
+        });
+
+        return () => cleanup && cleanup();
     }, []);
 
     // Keep meeting non-scroll
@@ -328,7 +345,11 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
     }
 
     async function endInterview() {
-        if (!window.confirm("Are you sure you want to end the interview?")) return;
+        setShowLeaveConfirm(true);
+    }
+
+    async function handleConfirmLeave() {
+        setShowLeaveConfirm(false);
         
         // Mark current candidate as complete so the session is freed
         if (currentCandidate) {
@@ -351,6 +372,11 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
         }
         
         onEnd?.();
+        
+        // If window close was pending, tell Electron to actually close
+        if (isClosingRequest) {
+            window.reqruita?.confirmClose?.();
+        }
     }
 
     function togglePanel(next) {
@@ -474,9 +500,19 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                 <div className={`mt-stage ${hasRemoteScreen ? "mt-sharing-active" : ""}`}>
                     {/* Main shared screen (remote screen share) */}
                     <div className="mt-share">
-                        {hasRemoteScreen ? (
-                            <video ref={remoteScreenRef} autoPlay playsInline muted={false} />
-                        ) : (
+                        {/* Always mount video to prevent re-mounting blink */}
+                        <video 
+                            ref={remoteScreenRef} 
+                            autoPlay 
+                            playsInline 
+                            muted={false} 
+                            style={{ 
+                                display: hasRemoteScreen ? 'block' : 'none',
+                                background: '#000' 
+                            }} 
+                        />
+                        
+                        {!hasRemoteScreen && (
                             <div className="mt-share-placeholder">
                                 <div className="mt-ph-content">
                                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2 drop-shadow-sm">
@@ -493,9 +529,16 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
 
                     {/* Interviewee cam tile (bottom-left) */}
                     <div className="mt-tile mt-tile-peer">
-                        {hasRemoteCam ? (
-                            <video ref={remoteCamRef} autoPlay playsInline muted={false} />
-                        ) : (
+                        {/* Keep video element stable to prevent blinking */}
+                        <video 
+                            ref={remoteCamRef} 
+                            autoPlay 
+                            playsInline 
+                            muted={false} 
+                            style={{ display: hasRemoteCam ? 'block' : 'none' }}
+                        />
+                        
+                        {!hasRemoteCam && (
                             <div className="mt-tile-ph">
                                 <div className="mt-tile-ph-avatar mt-tile-ph-pulse">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -830,6 +873,17 @@ export default function MeetingInterviewer({ session, onEnd, addToast }) {
                     </button>
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={showLeaveConfirm}
+                title="End Interview?"
+                message="Are you sure you want to end this interview session? This will complete the current candidate's evaluation."
+                confirmText="End Overall"
+                cancelText="Not Yet"
+                onConfirm={handleConfirmLeave}
+                onCancel={() => setShowLeaveConfirm(false)}
+                variant="danger"
+            />
         </div>
     );
 }
