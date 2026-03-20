@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 model = load_model("models/gaze_detection_model.h5")
 
 #class labels
-class_labels = { "LEFT","RIGHT","CENTER"}
+classes = ["LEFT", "RIGHT", "CENTER"]
 
 #preprocess image function
 def preprocess_image(image):
