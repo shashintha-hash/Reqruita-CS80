@@ -258,11 +258,12 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 setOffScreenCount(prev => {
                     const newCount = prev + 1;
 
-                    if (newCount >= 10) {
+                    if (newCount === 6) {
                         setWarning(" Please look at the screen!");
                         setTimeout(() => {
                           setWarning("");
                      }, 3000);
+                       return 0; 
                     }
 
                     return newCount;
@@ -355,7 +356,6 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     return (
         <div className={`jm-wrap ${sharing ? "jm-sharing-active" : ""}`}>
-            /* Warning banner for gaze tracking */
             {warning && (
                <div style={{
                   position: "fixed",
