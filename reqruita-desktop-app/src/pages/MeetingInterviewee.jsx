@@ -224,9 +224,7 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 }, [meetingId, localCamStream, startScreenShare]);
 
    //Gaze tracking effect- captures frames from local camera every 2 seconds and sends to backend for gaze prediction
-    let offScreenCount =0;
-   
-    useEffect(() => {
+   useEffect(() => {
     if (!localCamStream || !localCamRef.current) return;
 
     const interval = setInterval(async () => {
@@ -243,18 +241,28 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 body: JSON.stringify({ image: base64 }),
             });
 
+            if (!res.ok) {
+                console.error("Backend error");
+                return;
+            }
+
             const data = await res.json();
 
             console.log("Gaze:", data);
 
+            if (data.label !== "CENTER") {
+                setOffScreenCount(prev => {
+                    const newCount = prev + 1;
 
-            if (data.label !== "CENTER"){
-                offScreenCount++;
-                if(offScreenCount >=3){
-                    console.warn("Candidate appears to be looking away for a which may be a sign of distraction")
-                }
-            }else {
-                offScreenCount=0;
+                    if (newCount >= 3) {
+                        setWarning(" Please look at the screen!");
+                    }
+
+                    return newCount;
+                });
+            } else {
+                setOffScreenCount(0);
+                setWarning("");
             }
 
         } catch (err) {
@@ -320,6 +328,23 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     return (
         <div className={`jm-wrap ${sharing ? "jm-sharing-active" : ""}`}>
+            /* Warning banner for gaze tracking */
+            {warning && (
+               <div style={{
+                  position: "fixed",
+                  top: "20px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: "red",
+                  color: "white",
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  fontWeight: "bold",
+                  zIndex: 9999
+          }}>
+            {warning}
+         </div>
+)}
             {error && (
                 <div className="mt-err" style={{ background: "rgba(220,38,38,0.92)" }}>
                     {error}
