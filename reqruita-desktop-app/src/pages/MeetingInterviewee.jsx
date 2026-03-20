@@ -40,6 +40,10 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
     const [pdfSrc, setPdfSrc] = useState(null);
     const [pdfName, setPdfName] = useState("");
 
+    //Gaze tracking state
+    const [offScreenCount, setOffScreenCount] = useState(0);
+    const [warning, setWarning] = useState("");
+
     //chat UI
     const [chatOpen, setChatOpen] = useState(false);
     const [chatInput, setChatInput] = useState("");
@@ -220,11 +224,15 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 }, [meetingId, localCamStream, startScreenShare]);
 
    //Gaze tracking effect- captures frames from local camera every 2 seconds and sends to backend for gaze prediction
+    let offScreenCount =0;
+   
     useEffect(() => {
-    if (!localCamRef.current) return;
+    if (!localCamStream || !localCamRef.current) return;
 
     const interval = setInterval(async () => {
         try {
+            if (localCamRef.current.videoWidth === 0) return;
+
             const base64 = captureFrame(localCamRef.current);
 
             const res = await fetch("http://127.0.0.1:5000/predict-gaze", {
@@ -239,13 +247,24 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
             console.log("Gaze:", data);
 
+
+            if (data.label !== "CENTER"){
+                offScreenCount++;
+                if(offScreenCount >=3){
+                    console.warn("Candidate appears to be looking away for a which may be a sign of distraction")
+                }
+            }else {
+                offScreenCount=0;
+            }
+
         } catch (err) {
             console.error("Gaze error:", err);
         }
     }, 2000);
 
     return () => clearInterval(interval);
-   }, []);
+
+}, [localCamStream]);
 
     function toggleMic() {
         setMicMuted((v) => !v);
