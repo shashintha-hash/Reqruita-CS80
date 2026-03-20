@@ -4,7 +4,7 @@ import base64
 from tensorflow.keras.models import load_model
 
 # Load the trained model
-model = load_model('gaze_model.h5')
+model = load_model("models/gaze_detection_model.h5")
 
 #class labels
 class_labels = { "LEFT","RIGHT","CENTER"}
@@ -33,21 +33,10 @@ def base64_to_image(base64_string):
 
 #predict gaze direction
 def predict_gaze(base64_image):
-    """
-    Main function used by backend API
-
-    Input:
-        base64 image from React
-
-    Output:
-        {
-            "label": "LEFT",
-            "confidence": 0.85
-        }
-    """
+    
 
     # Step 1: Decode image
-    image = decode_base64_image(base64_image)
+    image = base64_to_image(base64_image)
 
     if image is None:
         return {"error": "Invalid image"}
