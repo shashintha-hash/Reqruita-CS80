@@ -43,6 +43,10 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
     //Gaze tracking state
     const [offScreenCount, setOffScreenCount] = useState(0);
     const [warning, setWarning] = useState("");
+    const [centerCount, setCenterCount] = useState(0);
+    const [leftCount, setLeftCount] = useState(0);
+    const [rightCount, setRightCount] = useState(0);
+    const [totalChecks, setTotalChecks] = useState(0);
 
     //chat UI
     const [chatOpen, setChatOpen] = useState(false);
@@ -254,8 +258,11 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 setOffScreenCount(prev => {
                     const newCount = prev + 1;
 
-                    if (newCount >= 3) {
+                    if (newCount >= 10) {
                         setWarning(" Please look at the screen!");
+                        setTimeout(() => {
+                          setWarning("");
+                     }, 3000);
                     }
 
                     return newCount;
@@ -264,11 +271,21 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
                 setOffScreenCount(0);
                 setWarning("");
             }
+        
+        setTotalChecks(prev => prev + 1);
+
+        if (data.label === "CENTER") {
+          setCenterCount(prev => prev + 1);
+        } else if (data.label === "LEFT") {
+          setLeftCount(prev => prev + 1);
+        } else if (data.label === "RIGHT") {
+          setRightCount(prev => prev + 1);
+    } 
 
         } catch (err) {
             console.error("Gaze error:", err);
         }
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(interval);
 
@@ -313,6 +330,16 @@ export default function MeetingInterviewee({ session, onLeave, addToast }) {
 
     function leave() {
         if (!window.confirm("Are you sure you want to leave the interview?")) return;
+        const focusPercentage = totalChecks === 0 ? 0 : (centerCount / totalChecks) * 100;
+
+        console.log("===== INTERVIEW REPORT =====");
+        console.log("Total Checks:", totalChecks);
+        console.log("Center:", centerCount);
+        console.log("Left:", leftCount);
+        console.log("Right:", rightCount);
+        console.log("Focus %:", focusPercentage.toFixed(2));
+        console.log("Status:", focusPercentage > 70 ? "GOOD" : "SUSPICIOUS");
+
         try {
             window.reqruita?.exitInterviewMode?.();
         } catch (e) { }
