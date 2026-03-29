@@ -2,6 +2,10 @@ const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut, s
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+<<<<<<< HEAD
+=======
+const { exec } = require("child_process");
+>>>>>>> upstream/main
 
 // Set the application name BEFORE app is ready to ensure correct userData path
 app.name = "Reqruita";
@@ -20,6 +24,17 @@ let workspaceWin;
 let feedbackWin;
 let isMeetingActive = false;
 let isClosingConfirmed = false;
+<<<<<<< HEAD
+=======
+let isExplorerKilled = false;
+
+function restoreExplorer() {
+    if (isExplorerKilled && process.platform === "win32") {
+        exec("explorer.exe");
+        isExplorerKilled = false;
+    }
+}
+>>>>>>> upstream/main
 
 function createWindow() {
     win = new BrowserWindow({
@@ -48,6 +63,13 @@ function createWindow() {
             win.webContents.send("rq:request-close");
         }
     });
+<<<<<<< HEAD
+=======
+
+    win.on("closed", () => {
+        win = null;
+    });
+>>>>>>> upstream/main
 }
 
 /**
@@ -108,10 +130,49 @@ function setupInterviewModeIPC() {
         win.setResizable(false);
         win.setMinimizable(false);
 
+<<<<<<< HEAD
         // If you want to prevent closing the window via X (optional):
         // win.setClosable(false);
     });
 
+=======
+        // --- EXTREME KIOSK LOCKDOWN ---
+        if (process.platform === "win32") {
+            exec("taskkill /f /im explorer.exe", (err) => {
+                if (!err) isExplorerKilled = true;
+            });
+        }
+
+        // Block the Windows Key by immediately stealing focus back if the Start Menu opens
+        win.on('blur', forceFocus);
+
+        // Block typical escape combinations
+        try {
+            globalShortcut.register('CommandOrControl+Shift+Esc', () => {}); // Task manager
+            globalShortcut.register('CommandOrControl+Esc', () => {}); // Start menu alternate
+            globalShortcut.register('Alt+Esc', () => {}); 
+            globalShortcut.register('Alt+Tab', () => {}); 
+            globalShortcut.register('Alt+Space', () => {}); 
+        } catch (err) {
+            console.error("Failed to register some block shortcuts", err);
+        }
+    });
+
+    // Helper to aggressively steal focus back and dismiss Start Menu
+    function forceFocus() {
+        if (isMeetingActive && win && !win.isDestroyed() && win.isKiosk()) {
+            win.focus();
+            win.setAlwaysOnTop(true, "screen-saver");
+            // If the start menu is stubbornly open, sometimes a small delay helps to re-assert Z-index
+            setTimeout(() => {
+                if (win && !win.isDestroyed() && win.isKiosk()) {
+                    win.focus();
+                }
+            }, 50);
+        }
+    }
+
+>>>>>>> upstream/main
     ipcMain.handle("rq:enter-interviewer-mode", () => {
         if (!win) return;
         isMeetingActive = true;
@@ -137,6 +198,11 @@ function setupInterviewModeIPC() {
         if (!win) return;
         isMeetingActive = false;
 
+<<<<<<< HEAD
+=======
+        restoreExplorer();
+
+>>>>>>> upstream/main
         win.setAlwaysOnTop(false);
         win.setKiosk(false);
         win.setFullScreen(false);
@@ -151,19 +217,43 @@ function setupInterviewModeIPC() {
             height: 32,
         });
 
+<<<<<<< HEAD
         // win.setClosable(true);
+=======
+        // Release the extreme kiosk lockdown
+        win.removeListener('blur', forceFocus);
+        globalShortcut.unregister('CommandOrControl+Shift+Esc');
+        globalShortcut.unregister('CommandOrControl+Esc');
+        globalShortcut.unregister('Alt+Esc');
+        globalShortcut.unregister('Alt+Tab');
+        globalShortcut.unregister('Alt+Space');
+>>>>>>> upstream/main
     });
 
     ipcMain.on("rq:confirm-close", () => {
         isClosingConfirmed = true;
+<<<<<<< HEAD
         if (win) win.close();
     });
 
     ipcMain.handle("rq:open-feedback", (event, role) => {
+=======
+        if (win && !win.isDestroyed()) win.close();
+    });
+
+    ipcMain.handle("rq:open-feedback", (event, payload) => {
+>>>>>>> upstream/main
         // Mark as confirmed so main window can close without question
         isClosingConfirmed = true;
         isMeetingActive = false;
 
+<<<<<<< HEAD
+=======
+        const role = typeof payload === "string" ? payload : (payload?.role || "");
+        const meetingId = typeof payload === "object" ? (payload?.meetingId || "") : "";
+        const candidateId = typeof payload === "object" ? (payload?.candidateId || "") : "";
+
+>>>>>>> upstream/main
         feedbackWin = new BrowserWindow({
             width: 500,
             height: 650,
@@ -178,17 +268,36 @@ function setupInterviewModeIPC() {
         });
 
         // Load the feedback view
+<<<<<<< HEAD
         feedbackWin.loadURL(`http://localhost:5173/?view=feedback&role=${role}`);
+=======
+        const feedbackParams = new URLSearchParams({
+            view: "feedback",
+            role,
+            meetingId,
+            candidateId,
+        });
+        feedbackWin.loadURL(`http://localhost:5173/?${feedbackParams.toString()}`);
+>>>>>>> upstream/main
         
         // Show when ready to avoid flicker
         feedbackWin.once('ready-to-show', () => {
             feedbackWin.show();
+<<<<<<< HEAD
             if (win) {
                 win.hide(); // Hide immediately
                 win.setSize(1, 1); // User's suggestion (shrink to 1px)
                 win.close(); 
                 win = null;
             }
+=======
+            if (win && !win.isDestroyed()) {
+                win.hide(); // Hide immediately
+                win.setSize(1, 1); // User's suggestion (shrink to 1px)
+                win.close(); 
+            }
+            win = null;
+>>>>>>> upstream/main
         });
 
         feedbackWin.on("closed", () => {
@@ -256,6 +365,10 @@ function setupEmergencyUnlockShortcut() {
         win.setFullScreen(false);
         win.setResizable(true);
         win.setMinimizable(true);
+<<<<<<< HEAD
+=======
+        restoreExplorer();
+>>>>>>> upstream/main
         // win.setClosable(true);
     });
 }
@@ -364,4 +477,8 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
     globalShortcut.unregisterAll();
+<<<<<<< HEAD
+=======
+    restoreExplorer();
+>>>>>>> upstream/main
 });

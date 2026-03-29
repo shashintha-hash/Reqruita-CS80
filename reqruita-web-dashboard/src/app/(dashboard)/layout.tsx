@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+<<<<<<< HEAD
 import {
   getToken,
   removeToken,
@@ -10,6 +11,9 @@ import {
   USER_UPDATED_EVENT,
   type AuthUser,
 } from "@/lib/api";
+=======
+import { getToken, removeToken, getStoredUser } from "@/lib/api";
+>>>>>>> upstream/main
 
 type NotificationItem = {
   id: number;
@@ -68,6 +72,11 @@ export default function DashboardLayout({
     (notification) => notification.unread,
   );
 
+<<<<<<< HEAD
+=======
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+>>>>>>> upstream/main
   const navItems = [
     {
       label: "Home",
@@ -129,6 +138,10 @@ export default function DashboardLayout({
     {
       label: "User & Roles",
       href: "/user-roles",
+<<<<<<< HEAD
+=======
+      roleRestricted: "admin",
+>>>>>>> upstream/main
       icon: (
         <svg
           className="w-5 h-5"
@@ -146,6 +159,29 @@ export default function DashboardLayout({
       ),
     },
     {
+<<<<<<< HEAD
+=======
+      label: "Subscriptions",
+      href: "/payment",
+      mainAdminOnly: true, // Only the 'Main Admin' (billing owner) can see this
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+          />
+        </svg>
+      ),
+    },
+    {
+>>>>>>> upstream/main
       label: "Settings",
       href: "/settings",
       icon: (
@@ -159,7 +195,11 @@ export default function DashboardLayout({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
+<<<<<<< HEAD
             d="M10.325 4.317a1.724 1.724 0 013.35 0 1.724 1.724 0 002.573 1.066 1.724 1.724 0 012.314 2.314 1.724 1.724 0 001.066 2.573 1.724 1.724 0 010 3.35 1.724 1.724 0 00-1.066 2.573 1.724 1.724 0 01-2.314 2.314 1.724 1.724 0 00-2.573 1.066 1.724 1.724 0 01-3.35 0 1.724 1.724 0 00-2.573-1.066 1.724 1.724 0 01-2.314-2.314 1.724 1.724 0 00-1.066-2.573 1.724 1.724 0 010-3.35 1.724 1.724 0 001.066-2.573 1.724 1.724 0 012.314-2.314 1.724 1.724 0 002.573-1.066z"
+=======
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+>>>>>>> upstream/main
           />
           <path
             strokeLinecap="round"
@@ -172,8 +212,40 @@ export default function DashboardLayout({
     },
   ];
 
+<<<<<<< HEAD
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
+=======
+  /**
+   * DYNAMIC NAVIGATION FILTERING:
+   * This logic ensures that users only see the sidebar items they are authorized to use.
+   * 1. Hides 'Subscriptions' from normal admins.
+   * 2. Hides 'User & Roles' from interviewers.
+   * 3. Hides 'Job Forms' from interviewers.
+   */
+  const filteredNavItems = navItems.filter((item: any) => {
+    // Check Main Admin requirement
+    if (item.mainAdminOnly && !currentUser?.isMainAdmin) return false;
+
+    // Check generic role restrictions
+    if (item.roleRestricted && currentUser?.role !== item.roleRestricted)
+      return false;
+
+    // Special case for interviewers: hide Job Forms
+    if (currentUser?.role === "interviewer" && item.href === "/job-forms")
+      return false;
+
+    return true;
+  });
+
+  /**
+   * AUTHENTICATION INITIALIZATION:
+   * Runs when the dashboard first loads.
+   * 1. Checks if a token was passed via URL query (login from landing page).
+   * 2. Tries to retrieve user profile from memory or API.
+   * 3. Redirects to sign-in if no valid session is found.
+   */
+>>>>>>> upstream/main
   useEffect(() => {
     const initAuth = async () => {
       // Check for token in URL (passed from landing page)
@@ -184,22 +256,40 @@ export default function DashboardLayout({
         if (urlToken) {
           localStorage.setItem("reqruita_token", urlToken);
           const newUrl = window.location.pathname;
+<<<<<<< HEAD
           window.history.replaceState({}, "", newUrl);
+=======
+          window.history.replaceState({}, "", newUrl); // Clean the URL after saving token
+>>>>>>> upstream/main
         }
       }
 
       // Try to get stored user first
       let storedUser = getStoredUser();
 
+<<<<<<< HEAD
       // If we have a token but no user data, fetch it
+=======
+      // If we have a token but no user data in localStorage, fetch it from backend
+>>>>>>> upstream/main
       if (!storedUser && getToken()) {
         try {
           const { fetchMe, saveUser } = await import("@/lib/api");
           const user = await fetchMe();
+<<<<<<< HEAD
           saveUser(user);
           storedUser = user;
         } catch (err) {
           console.error("Failed to fetch current user profile:", err);
+=======
+          saveUser(user); // Persistence
+          storedUser = user;
+        } catch (err) {
+          console.error("Failed to fetch current user profile:", err);
+          removeToken();
+          router.replace("/signin");
+          return;
+>>>>>>> upstream/main
         }
       }
 
@@ -209,6 +299,7 @@ export default function DashboardLayout({
     initAuth();
   }, []);
 
+<<<<<<< HEAD
   useEffect(() => {
     const syncCurrentUser = () => {
       setCurrentUser(getStoredUser());
@@ -233,6 +324,8 @@ export default function DashboardLayout({
     };
   }, []);
 
+=======
+>>>>>>> upstream/main
   const isActive = (href: string) => {
     if (href === "/") {
       return pathname === "/" || pathname === "/dashboard";
@@ -312,7 +405,11 @@ export default function DashboardLayout({
         </div>
 
         <nav className="relative z-10 flex-1 px-4 py-2 space-y-1">
+<<<<<<< HEAD
           {navItems.map((item) => (
+=======
+          {filteredNavItems.map((item: any) => (
+>>>>>>> upstream/main
             <Link
               key={item.label}
               href={item.href}
@@ -336,6 +433,7 @@ export default function DashboardLayout({
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
+<<<<<<< HEAD
         <header className="h-20 bg-white/80 backdrop-blur-lg border-b border-gray-200/50 flex items-center justify-between px-8 shadow-sm">
           <div className="flex-1 max-w-xl">
             <div className="relative">
@@ -391,6 +489,10 @@ export default function DashboardLayout({
 
             <div className="h-8 w-px bg-gray-300"></div>
 
+=======
+        <header className="h-20 bg-white/80 backdrop-blur-lg border-b border-gray-200/50 flex items-center justify-end px-8 shadow-sm">
+          <div className="flex items-center gap-4 ml-8">
+>>>>>>> upstream/main
             <div className="relative" ref={profileMenuRef}>
               <button
                 className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 rounded-xl p-2 pr-3 transition-colors"
@@ -411,10 +513,19 @@ export default function DashboardLayout({
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">
+<<<<<<< HEAD
                     {currentUser ? (currentUser.fullName || currentUser.email) : "Not Connected"}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
                     {currentUser?.role ?? "No Connection"}
+=======
+                    {currentUser
+                      ? currentUser.fullName || currentUser.email
+                      : "Admin User"}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {currentUser?.role ?? "Administrator"}
+>>>>>>> upstream/main
                   </p>
                 </div>
                 <svg

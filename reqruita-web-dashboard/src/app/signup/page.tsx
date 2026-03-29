@@ -89,9 +89,26 @@ const getDialCode = (country: (typeof countries)[number]): string => {
   return `${cleanRoot}${firstSuffix}`.trim();
 };
 
+<<<<<<< HEAD
 export default function SignupPage() {
   const router = useRouter();
 
+=======
+/**
+ * SIGN-UP PAGE COMPONENT: SignupPage
+ * The entry point for new companies to join Reqruita.
+ * 
+ * Logic Overview:
+ * 1. Collects personal details (Admin) and organizational details (Company).
+ * 2. Validates password strength and matches.
+ * 3. Handles automatic phone number formatting with country dial codes.
+ * 4. Redirects to /verify-email upon successful registration.
+ */
+export default function SignupPage() {
+  const router = useRouter();
+
+  // Memoized country options for phone & address selection
+>>>>>>> upstream/main
   const countryOptions = useMemo<CountryPhoneOption[]>(() => {
     return countries
       .map((country) => {
@@ -111,6 +128,10 @@ export default function SignupPage() {
   const [phoneCountryCode, setPhoneCountryCode] = useState("US");
   const [localPhoneNumber, setLocalPhoneNumber] = useState("");
 
+<<<<<<< HEAD
+=======
+  // Unified form state for both User and Company data
+>>>>>>> upstream/main
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -133,6 +154,14 @@ export default function SignupPage() {
     countryOptions.find((country) => country.code === phoneCountryCode) ||
     countryOptions[0];
 
+<<<<<<< HEAD
+=======
+  /**
+   * PHONE FORMATTING SYNC:
+   * Combines the selected dial code with raw local digits.
+   * Ensures the backend receives a standardized E.164-like string.
+   */
+>>>>>>> upstream/main
   useEffect(() => {
     const sanitized = localPhoneNumber.replace(/[^\d]/g, "");
     const fullPhoneNumber = sanitized
@@ -153,10 +182,22 @@ export default function SignupPage() {
     if (error) setError(null);
   };
 
+<<<<<<< HEAD
+=======
+  /**
+   * REGISTRATION SUBMISSION:
+   * Sends the full packet to /api/register.
+   * Note: The backend will create BOTH a User record and a Company record.
+   */
+>>>>>>> upstream/main
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+<<<<<<< HEAD
+=======
+    // Frontend Validation: Basic sanity checks
+>>>>>>> upstream/main
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -169,7 +210,13 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       await signup(formData);
+<<<<<<< HEAD
       // Redirect to email verification page instead of saving token
+=======
+      
+      // Verification Guard: We don't log them in yet. 
+      // They must verify their email with the OTP sent during signup.
+>>>>>>> upstream/main
       router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } catch (err: unknown) {
       setError(

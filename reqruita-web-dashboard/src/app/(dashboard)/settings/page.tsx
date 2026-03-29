@@ -15,10 +15,13 @@ type SettingsForm = {
   email: string;
   companyName: string;
   jobTitle: string;
+<<<<<<< HEAD
   weeklyDigest: boolean;
   interviewReminders: boolean;
   candidateAlerts: boolean;
   securityAlerts: boolean;
+=======
+>>>>>>> upstream/main
 };
 
 type PasswordForm = {
@@ -27,16 +30,28 @@ type PasswordForm = {
   confirmPassword: string;
 };
 
+<<<<<<< HEAD
+=======
+type PasswordVisibility = {
+  currentPassword: boolean;
+  newPassword: boolean;
+  confirmPassword: boolean;
+};
+
+>>>>>>> upstream/main
 const DEFAULT_FORM_DATA: SettingsForm = {
   firstName: "",
   lastName: "",
   email: "",
   companyName: "",
   jobTitle: "",
+<<<<<<< HEAD
   weeklyDigest: true,
   interviewReminders: true,
   candidateAlerts: true,
   securityAlerts: true,
+=======
+>>>>>>> upstream/main
 };
 
 const buildSettingsForm = (user: AuthUser): SettingsForm => ({
@@ -45,10 +60,13 @@ const buildSettingsForm = (user: AuthUser): SettingsForm => ({
   email: user.email ?? "",
   companyName: user.companyName ?? "",
   jobTitle: user.jobTitle ?? "",
+<<<<<<< HEAD
   weeklyDigest: user.notificationPreferences?.weeklyDigest ?? true,
   interviewReminders: user.notificationPreferences?.interviewReminders ?? true,
   candidateAlerts: user.notificationPreferences?.candidateAlerts ?? true,
   securityAlerts: user.notificationPreferences?.securityAlerts ?? true,
+=======
+>>>>>>> upstream/main
 });
 
 export default function SettingsPage() {
@@ -61,6 +79,15 @@ export default function SettingsPage() {
     confirmPassword: "",
   });
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+<<<<<<< HEAD
+=======
+  const [passwordVisibility, setPasswordVisibility] =
+    useState<PasswordVisibility>({
+      currentPassword: false,
+      newPassword: false,
+      confirmPassword: false,
+    });
+>>>>>>> upstream/main
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -112,12 +139,15 @@ export default function SettingsPage() {
         email: formData.email,
         companyName: formData.companyName,
         jobTitle: formData.jobTitle,
+<<<<<<< HEAD
         notificationPreferences: {
           weeklyDigest: formData.weeklyDigest,
           interviewReminders: formData.interviewReminders,
           candidateAlerts: formData.candidateAlerts,
           securityAlerts: formData.securityAlerts,
         },
+=======
+>>>>>>> upstream/main
       });
 
       saveUser(response.user);
@@ -194,8 +224,14 @@ export default function SettingsPage() {
   }
 
   return (
+<<<<<<< HEAD
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <section className="xl:col-span-2 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+=======
+    <div className="w-full max-w-5xl">
+      <div className="grid grid-cols-1 gap-6">
+        <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+>>>>>>> upstream/main
         <div>
           <h2 className="text-lg font-semibold text-gray-900">
             Profile Information
@@ -257,6 +293,227 @@ export default function SettingsPage() {
           </label>
         </div>
 
+<<<<<<< HEAD
+=======
+        <div className="pt-4 border-t border-gray-100 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Security</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Keep your account safe with regular updates.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setShowPasswordForm((prev) => !prev);
+                setPasswordError(null);
+                setPasswordSuccess(null);
+                setPasswordVisibility({
+                  currentPassword: false,
+                  newPassword: false,
+                  confirmPassword: false,
+                });
+              }}
+              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-left hover:bg-gray-50 transition-colors"
+            >
+              {showPasswordForm ? "Hide Password Form" : "Change Password"}
+            </button>
+            <button
+              disabled
+              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-left text-gray-400 cursor-not-allowed"
+            >
+              Enable 2FA
+            </button>
+          </div>
+
+          {showPasswordForm && (
+            <div className="space-y-3 rounded-xl border border-gray-200 p-3.5 bg-gray-50">
+              <div className="relative">
+                <input
+                  type={passwordVisibility.currentPassword ? "text" : "password"}
+                  value={passwordData.currentPassword}
+                  placeholder="Current password"
+                  onChange={(event) =>
+                    handlePasswordFieldChange("currentPassword", event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 pr-11 text-sm outline-none focus:border-reqruita-purple"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPasswordVisibility((prev) => ({
+                      ...prev,
+                      currentPassword: !prev.currentPassword,
+                    }))
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={
+                    passwordVisibility.currentPassword
+                      ? "Hide current password"
+                      : "Show current password"
+                  }
+                >
+                  {passwordVisibility.currentPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M3 3l18 18" />
+                      <path d="M10.58 10.58a2 2 0 102.83 2.83" />
+                      <path d="M9.88 5.09A9.77 9.77 0 0112 4c5 0 9.27 3.11 11 8-1 2.82-3.13 5.03-5.76 6.32" />
+                      <path d="M6.61 6.61C4.62 8.04 3.08 9.9 2 12c.72 1.99 1.94 3.74 3.5 5.09" />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={passwordVisibility.newPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  placeholder="New password"
+                  onChange={(event) =>
+                    handlePasswordFieldChange("newPassword", event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 pr-11 text-sm outline-none focus:border-reqruita-purple"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPasswordVisibility((prev) => ({
+                      ...prev,
+                      newPassword: !prev.newPassword,
+                    }))
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={
+                    passwordVisibility.newPassword
+                      ? "Hide new password"
+                      : "Show new password"
+                  }
+                >
+                  {passwordVisibility.newPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M3 3l18 18" />
+                      <path d="M10.58 10.58a2 2 0 102.83 2.83" />
+                      <path d="M9.88 5.09A9.77 9.77 0 0112 4c5 0 9.27 3.11 11 8-1 2.82-3.13 5.03-5.76 6.32" />
+                      <path d="M6.61 6.61C4.62 8.04 3.08 9.9 2 12c.72 1.99 1.94 3.74 3.5 5.09" />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={passwordVisibility.confirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  placeholder="Confirm new password"
+                  onChange={(event) =>
+                    handlePasswordFieldChange("confirmPassword", event.target.value)
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 pr-11 text-sm outline-none focus:border-reqruita-purple"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPasswordVisibility((prev) => ({
+                      ...prev,
+                      confirmPassword: !prev.confirmPassword,
+                    }))
+                  }
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                  aria-label={
+                    passwordVisibility.confirmPassword
+                      ? "Hide confirm password"
+                      : "Show confirm password"
+                  }
+                >
+                  {passwordVisibility.confirmPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M3 3l18 18" />
+                      <path d="M10.58 10.58a2 2 0 102.83 2.83" />
+                      <path d="M9.88 5.09A9.77 9.77 0 0112 4c5 0 9.27 3.11 11 8-1 2.82-3.13 5.03-5.76 6.32" />
+                      <path d="M6.61 6.61C4.62 8.04 3.08 9.9 2 12c.72 1.99 1.94 3.74 3.5 5.09" />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-4 w-4"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={changingPassword}
+                className="w-full rounded-xl bg-reqruita-purple px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4c1a90] disabled:opacity-70"
+              >
+                {changingPassword ? "Updating Password..." : "Update Password"}
+              </button>
+              {(passwordError || passwordSuccess) && (
+                <p
+                  className={`text-xs ${
+                    passwordError ? "text-red-600" : "text-green-600"
+                  }`}
+                >
+                  {passwordError || passwordSuccess}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+>>>>>>> upstream/main
         {(saveError || saveSuccess) && (
           <div
             className={`rounded-xl border px-4 py-3 text-sm ${
@@ -268,6 +525,7 @@ export default function SettingsPage() {
             {saveError || saveSuccess}
           </div>
         )}
+<<<<<<< HEAD
       </section>
 
       <section className="xl:col-span-1 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6 h-fit">
@@ -414,6 +672,25 @@ export default function SettingsPage() {
         >
           {saving ? "Saving..." : "Save Changes"}
         </button>
+=======
+        </section>
+
+        <div className="flex items-center justify-end gap-3">
+          <button
+            onClick={handleCancel}
+            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-5 py-2.5 rounded-xl bg-reqruita-purple text-white text-sm font-semibold hover:bg-[#4c1a90] transition-colors"
+          >
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+>>>>>>> upstream/main
       </div>
     </div>
   );

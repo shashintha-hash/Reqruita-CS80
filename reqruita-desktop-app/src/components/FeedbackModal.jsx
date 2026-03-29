@@ -25,6 +25,13 @@ export default function FeedbackModal({ isOpen, role, onSubmit, onClose, addToas
         if (isInterviewee) {
             onSubmit({ rating, feedback });
         } else {
+<<<<<<< HEAD
+=======
+            if (!status) {
+                addToast?.("Please select Positive, Neutral, or Negative", "warning");
+                return;
+            }
+>>>>>>> upstream/main
             onSubmit({ status, feedback });
         }
     };

@@ -1,6 +1,99 @@
 const JobForm = require("../models/JobForm");
 const FormSubmission = require("../models/FormSubmission");
 
+<<<<<<< HEAD
+=======
+const DEFAULT_UNKNOWN_EMAIL = "unknown@example.com";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+const PERMANENT_FIELDS = [
+  { label: "Full Name", type: "text", required: true },
+  { label: "Email", type: "email", required: true },
+];
+
+const normalizeFieldLabel = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const isPermanentField = (field) => {
+  const normalizedLabel = normalizeFieldLabel(field.label);
+
+  if (field.type === "email" && normalizedLabel === "email") {
+    return true;
+  }
+
+  if (
+    field.type === "text" &&
+    (normalizedLabel === "name" || normalizedLabel === "fullname")
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+const ensurePermanentFields = (fields = []) => {
+  const sanitizedInput = (fields || [])
+    .map((f) => ({
+      label: String(f.label || "").trim(),
+      type: f.type || "text",
+      required: f.required !== false,
+    }))
+    .filter((f) => f.label.length > 0);
+
+  const customFields = sanitizedInput.filter((field) => !isPermanentField(field));
+
+  return [...PERMANENT_FIELDS, ...customFields].map((field, index) => ({
+    label: field.label,
+    type: field.type,
+    required: true,
+    order: index,
+  }));
+};
+
+const extractSubmittedEmail = (submittedData = {}) => {
+  const entries = Object.entries(submittedData || {});
+
+  const directEmail = String(submittedData.email || "")
+    .trim()
+    .toLowerCase();
+
+  if (EMAIL_PATTERN.test(directEmail) && directEmail !== DEFAULT_UNKNOWN_EMAIL) {
+    return directEmail;
+  }
+
+  const matchedEmail = entries
+    .map(([key, value]) => ({
+      key: normalizeFieldLabel(key),
+      value: String(value || "")
+        .trim()
+        .toLowerCase(),
+    }))
+    .find(
+      (entry) =>
+        entry.key.includes("email") &&
+        EMAIL_PATTERN.test(entry.value) &&
+        entry.value !== DEFAULT_UNKNOWN_EMAIL,
+    );
+
+  return matchedEmail ? matchedEmail.value : DEFAULT_UNKNOWN_EMAIL;
+};
+
+const hasSubmittedName = (submittedData = {}) => {
+  const entries = Object.entries(submittedData || {});
+
+  return entries.some(([key, value]) => {
+    const normalizedKey = normalizeFieldLabel(key);
+    if (normalizedKey !== "name" && normalizedKey !== "fullname") {
+      return false;
+    }
+
+    return String(value || "").trim().length > 0;
+  });
+};
+
+>>>>>>> upstream/main
 // Create a new job form
 const createJobForm = async (req, res) => {
   try {
@@ -11,6 +104,7 @@ const createJobForm = async (req, res) => {
       return res.status(400).json({ error: "Title and user ID are required" });
     }
 
+<<<<<<< HEAD
     const sanitizedFields = (fields || [])
       .map((f, i) => ({
         label: String(f.label || "").trim(),
@@ -19,13 +113,20 @@ const createJobForm = async (req, res) => {
         order: i,
       }))
       .filter((f) => f.label.length > 0);
+=======
+    const sanitizedFields = ensurePermanentFields(fields || []);
+>>>>>>> upstream/main
 
     const newForm = new JobForm({
       title: title.trim(),
       description: description?.trim() || "",
       jobRole: jobRole?.trim() || "",
       createdBy: userId,
+<<<<<<< HEAD
       fields: sanitizedFields.length > 0 ? sanitizedFields : [],
+=======
+      fields: sanitizedFields,
+>>>>>>> upstream/main
     });
 
     await newForm.save();
@@ -78,7 +179,12 @@ const getJobFormById = async (req, res) => {
       title: form.title,
       description: form.description,
       jobRole: form.jobRole,
+<<<<<<< HEAD
       fields: form.fields,
+=======
+      fields: ensurePermanentFields(form.fields),
+      isActive: form.isActive,
+>>>>>>> upstream/main
       company: form.createdBy?.companyName || "Our Company",
     };
 
@@ -93,7 +199,11 @@ const getJobFormById = async (req, res) => {
 const updateJobForm = async (req, res) => {
   try {
     const { formId } = req.params;
+<<<<<<< HEAD
     const { title, description, fields, jobRole } = req.body;
+=======
+    const { title, description, fields, jobRole, isActive } = req.body;
+>>>>>>> upstream/main
     const userId = req.user?.id;
 
     const form = await JobForm.findById(formId);
@@ -109,6 +219,7 @@ const updateJobForm = async (req, res) => {
     if (title) form.title = title.trim();
     if (description !== undefined) form.description = description.trim();
     if (jobRole !== undefined) form.jobRole = jobRole.trim();
+<<<<<<< HEAD
 
     if (fields && Array.isArray(fields)) {
       form.fields = fields
@@ -119,6 +230,12 @@ const updateJobForm = async (req, res) => {
           order: i,
         }))
         .filter((f) => f.label.length > 0);
+=======
+    if (typeof isActive === "boolean") form.isActive = isActive;
+
+    if (fields && Array.isArray(fields)) {
+      form.fields = ensurePermanentFields(fields);
+>>>>>>> upstream/main
     }
 
     await form.save();
@@ -183,12 +300,31 @@ const submitFormResponse = async (req, res) => {
         .json({ error: "This form is no longer accepting submissions" });
     }
 
+<<<<<<< HEAD
     const submitterEmail = submittedData.email || "unknown@example.com";
+=======
+    if (!hasSubmittedName(submittedData)) {
+      return res.status(400).json({
+        error: "Name is required",
+      });
+    }
+
+    const submitterEmail = extractSubmittedEmail(submittedData);
+    if (submitterEmail === DEFAULT_UNKNOWN_EMAIL) {
+      return res.status(400).json({
+        error: "Valid email is required",
+      });
+    }
+>>>>>>> upstream/main
 
     const submission = new FormSubmission({
       formId,
       submittedData,
+<<<<<<< HEAD
       submitterEmail: submitterEmail.toLowerCase().trim(),
+=======
+      submitterEmail,
+>>>>>>> upstream/main
       ipAddress: req.ip || req.connection.remoteAddress || "",
     });
 

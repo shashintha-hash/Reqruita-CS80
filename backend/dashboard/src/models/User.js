@@ -13,12 +13,33 @@ const userSchema = new mongoose.Schema(
     industry: { type: String, trim: true, default: "" },
     country: { type: String, trim: true, default: "" },
     address: { type: String, trim: true, default: "" },
+<<<<<<< HEAD
+=======
+    userCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+      index: true,
+      // Format: USR-XXXXXX (e.g. USR-000123)
+    },
+    companyCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      index: true,
+      default: "",
+      // Format: COM-XXXXXX (e.g. COM-000123)
+    },
+>>>>>>> upstream/main
     notificationPreferences: {
       weeklyDigest: { type: Boolean, default: true },
       interviewReminders: { type: Boolean, default: true },
       candidateAlerts: { type: Boolean, default: true },
       securityAlerts: { type: Boolean, default: true },
     },
+<<<<<<< HEAD
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true },
     role: { type: String, enum: ["admin", "interviewer", "recruiter", "hr manager", "candidate"], required: true },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
@@ -26,12 +47,43 @@ const userSchema = new mongoose.Schema(
     isInvited: { type: Boolean, default: false },
     inviteToken: { type: String, default: null, index: true },
     inviteExpires: { type: Date, default: null },
+=======
+    companyId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Company", 
+      required: true,
+      // Core linking field for scoping data to a specific organization.
+    },
+    role: { 
+      type: String, 
+      enum: ["admin", "interviewer", "candidate"], 
+      required: true,
+      // 'admin' has access to Users & Roles, 'interviewer' is restricted.
+    },
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    // Authentication & Email Verification Fields
+    isEmailVerified: { type: Boolean, default: false },
+    isInvited: { type: Boolean, default: false }, // True if created via 'Invite New User'
+    inviteToken: { type: String, default: null, index: true },
+    inviteExpires: { type: Date, default: null },
+    
+    // OTP handling for Email Verification and Password Reset
+>>>>>>> upstream/main
     emailVerificationOtpHash: { type: String, default: null },
     emailVerificationOtpExpiresAt: { type: Date, default: null },
     emailVerificationOtpSentAt: { type: Date, default: null },
     resetPasswordOtpHash: { type: String, default: null },
     resetPasswordOtpExpiresAt: { type: Date, default: null },
     resetPasswordOtpSentAt: { type: Date, default: null },
+<<<<<<< HEAD
+=======
+
+    /**
+     * HIERARCHY FLAG:
+     * Identifies the primary account for the company (the person who signed up).
+     * Only 'isMainAdmin: true' can manage other 'admin' role accounts.
+     */
+>>>>>>> upstream/main
     isMainAdmin: { type: Boolean, default: false }
 }, { timestamps: true });
 

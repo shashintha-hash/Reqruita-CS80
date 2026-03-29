@@ -5,16 +5,33 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signin, saveToken, saveUser } from '@/lib/api';
 
+<<<<<<< HEAD
 export default function SigninPage() {
   const router = useRouter();
 
+=======
+/**
+ * SIGN-IN PAGE COMPONENT
+ * Handles user authentication through email and password.
+ */
+export default function SigninPage() {
+  const router = useRouter();
+
+  // Form State: Tracks user inputs for credentials
+>>>>>>> upstream/main
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
 
+<<<<<<< HEAD
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+=======
+  // UI State: Controls visibility, loading indicators, and error banners
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false); 
+>>>>>>> upstream/main
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,25 +41,51 @@ export default function SigninPage() {
     if (error) setError(null);
   };
 
+<<<<<<< HEAD
+=======
+  /**
+   * FORM SUBMISSION HANDLER:
+   * 1. Sends credentials to the backend /api/login endpoint.
+   * 2. If the user hasn't verified their email, redirects to /verify-email.
+   * 3. If successful, saves the JWT and user profile to localStorage.
+   */
+>>>>>>> upstream/main
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+<<<<<<< HEAD
+=======
+    
+>>>>>>> upstream/main
     try {
       const result = await signin({
         email: formData.email,
         password: formData.password,
       });
 
+<<<<<<< HEAD
       // Check if email verification is required
+=======
+      // MFA/Verification Guard: If the backend says the email is unverified,
+      // we stop the login process and force verification.
+>>>>>>> upstream/main
       if ((result as any).requiresEmailVerification) {
         router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
         return;
       }
 
+<<<<<<< HEAD
       // Email is verified, proceed with login
       saveToken(result.token);
       saveUser(result.user);
+=======
+      // SUCCESS: Persist the session locally
+      saveToken(result.token);
+      saveUser(result.user);
+      
+      // Redirect to the dashboard home
+>>>>>>> upstream/main
       router.push('/home');
     } catch (err: unknown) {
       setError(

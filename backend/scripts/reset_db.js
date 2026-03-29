@@ -1,6 +1,10 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+<<<<<<< HEAD
 const DB_PATH = path.join(__dirname, 'reqruita.db');
+=======
+const DB_PATH = path.join(__dirname, '../reqruita.db');
+>>>>>>> upstream/main
 
 /**
  * RESET SCRIPT: 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "./auth-ui.css";
 
+<<<<<<< HEAD
 // Default credentials
 const CREDS = {
     join: {
@@ -14,6 +15,9 @@ const CREDS = {
         password: "123",
     },
 };
+=======
+import { BACKEND_URL } from "../config";
+>>>>>>> upstream/main
 
 export default function Login({ role, onBack, onSuccess, addToast }) {
     const [email, setEmail] = useState("");
@@ -35,6 +39,7 @@ export default function Login({ role, onBack, onSuccess, addToast }) {
         setErr("");
         setLoading(true);
 
+<<<<<<< HEAD
         // Simulate tiny network delay for feedback
         await new Promise((r) => setTimeout(r, 350));
 
@@ -67,6 +72,67 @@ export default function Login({ role, onBack, onSuccess, addToast }) {
             password: password.trim(),
             remember,
         });
+=======
+        // Fallback for database crash
+        if (email.trim() === "123" && meetingId.trim() === "123" && password.trim() === "123") {
+            setLoading(false);
+            onSuccess?.({
+                role,
+                email: "123",
+                meetingId: "123",
+                password: "123",
+                remember,
+                participantId: role === "join" ? "fallback-candidate" : "fallback-interviewer",
+                name: "Fallback User"
+            });
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: email.trim(),
+                    meetingId: meetingId.trim(),
+                    password: password.trim(),
+                    role,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                const errorMsg = data.message || "Invalid credentials. Please check Email, Meeting ID, and Password.";
+                setErr(errorMsg);
+                setLoading(false);
+                addToast?.(errorMsg, "error");
+                return;
+            }
+
+            setLoading(false);
+            
+            // Extract extra data to pass to onSuccess
+            const { participantId, name } = data.data || {};
+
+            // Move to next stage (DeviceCheck)
+            onSuccess?.({
+                role,
+                email: email.trim(),
+                meetingId: meetingId.trim(),
+                password: password.trim(),
+                remember,
+                participantId,
+                name
+            });
+        } catch (error) {
+            console.error("Login request failed:", error);
+            setErr("Network error. Please try again later.");
+            setLoading(false);
+            addToast?.("Network error. Please try again later.", "error");
+            return;
+        }
+>>>>>>> upstream/main
     }
 
     const title = role === "join" ? "Join interview" : "Conduct interview";

@@ -1,17 +1,52 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+<<<<<<< HEAD
 const { sendEmail } = require("../config/resend");
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const mapUserResponse = (user) => ({
   id: user._id,
+=======
+const { sendEmail, sendCustomEmail } = require("../config/resend");
+const { generateUniqueCode } = require("../utils/codeGenerator");
+
+/**
+ * Validates email format using regex.
+ */
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+/**
+ * Formats a given value into a numeric suffix for IDs (e.g., USR-000123).
+ */
+const toNumericSuffix = (value, size = 6) =>
+  String(value || "")
+    .replace(/\D/g, "") // Remove non-numeric characters
+    .slice(-size)       // Take the last N digits
+    .padStart(size, "0"); // Pad with zeros
+
+const ALLOWED_DASHBOARD_ROLES = ["admin", "interviewer"];
+
+/**
+ * Transforms a raw Mongoose user document into a safe, multi-tenant aware JSON object.
+ * This ensures sensitive data like passwords are never accidentally leaked.
+ */
+const mapUserResponse = (user) => ({
+  id: user._id,
+  userId: user.userCode || `USR-${toNumericSuffix(user._id)}`,
+>>>>>>> upstream/main
   fullName: `${user.firstName} ${user.lastName}`,
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
   role: user.role,
+<<<<<<< HEAD
+=======
+  isMainAdmin: user.isMainAdmin, // Identifies if this is the primary account for the company
+  companyId: user.companyId,     // The internal UUID for the organization
+  companyCode: user.companyCode || `COM-${toNumericSuffix(user.companyId)}`, // Human-readable company ID
+>>>>>>> upstream/main
   companyName: user.companyName,
   jobTitle: user.jobTitle,
   industry: user.industry,
@@ -159,6 +194,7 @@ exports.changePassword = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // GET /api/dashboard/users
 exports.getUsers = async (req, res) => {
   try {
@@ -169,6 +205,40 @@ exports.getUsers = async (req, res) => {
     }
     const users = await User.find({}, "-password").sort({ createdAt: -1 });
     res.status(200).json(users);
+=======
+/**
+ * GET /api/dashboard/users
+ * Returns the list of colleagues within the SAME company.
+ */
+exports.getUsers = async (req, res) => {
+  try {
+    // Only allow dashbord users (Admins/Interviewers) access
+    if (!["admin", "interviewer"].includes(req.user.role)) {
+      return res
+        .status(403)
+        .json({ message: "Access Denied: Requires Admin or Interviewer Role" });
+    }
+
+    // MULTI-TENANCY: Only query users matching the current user's companyId
+    const filter = { companyId: req.user.companyId };
+    
+    // Privacy: If an interviewer is viewing, they can only see Admins (colleagues), 
+    // potentially hiding fellow interviewers depending on local rules.
+    if (req.user.role === "interviewer") {
+      filter.role = "admin";
+    }
+
+    const users = await User.find(filter, "-password").sort({ createdAt: -1 });
+    res.status(200).json(
+      users.map((user) => ({
+        ...user.toObject(),
+        userId: user.userCode || `USR-${toNumericSuffix(user._id)}`,
+        companyCode:
+          user.companyCode ||
+          `COM-${toNumericSuffix(user.companyId)}`,
+      })),
+    );
+>>>>>>> upstream/main
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -182,8 +252,12 @@ exports.addUser = async (req, res) => {
         }
 
         const { email, role, firstName, lastName } = req.body;
+<<<<<<< HEAD
         const validRoles = ["admin", "interviewer", "recruiter", "hr manager", "candidate"];
         if (!validRoles.includes(role)) {
+=======
+        if (!ALLOWED_DASHBOARD_ROLES.includes(role)) {
+>>>>>>> upstream/main
             return res.status(400).json({ message: "Invalid role selected" });
         }
 
@@ -199,6 +273,28 @@ exports.addUser = async (req, res) => {
         const finalLastName = lastName || "User";
         const fullName = `${finalFirstName} ${finalLastName}`;
 
+<<<<<<< HEAD
+=======
+        const inviter = await User.findById(req.user.id).select("companyId companyName companyCode");
+        if (!inviter) {
+          return res.status(404).json({ message: "Inviter account not found" });
+        }
+
+        const companyContext = await User.findOne({
+          companyId: inviter.companyId,
+          role: "admin",
+          isMainAdmin: true,
+        }).select("companyId companyName companyCode");
+
+        const companyId = companyContext?.companyId || inviter.companyId;
+        const companyName =
+          (companyContext?.companyName || inviter.companyName || "").trim();
+        const companyCode =
+          (companyContext?.companyCode || inviter.companyCode || "").trim() ||
+          `COM-${toNumericSuffix(companyId)}`;
+        const userCode = await generateUniqueCode(User, "userCode", "USR");
+
+>>>>>>> upstream/main
         const newUser = new User({
             firstName: finalFirstName,
             lastName: finalLastName,
@@ -210,7 +306,14 @@ exports.addUser = async (req, res) => {
             isInvited: true,
             inviteToken,
             inviteExpires,
+<<<<<<< HEAD
             companyId: req.user.companyId
+=======
+            companyId,
+            companyName,
+            companyCode,
+            userCode,
+>>>>>>> upstream/main
         });
 
         await newUser.save();
@@ -226,13 +329,35 @@ exports.addUser = async (req, res) => {
             resetUrl: setupLink
         });
 
+<<<<<<< HEAD
         res.status(201).json({ message: "Invitation sent successfully!", user: { id: newUser._id, email: newUser.email, role: newUser.role, fullName: newUser.fullName } });
+=======
+        res.status(201).json({
+          message: "Invitation sent successfully!",
+          user: {
+            id: newUser._id,
+            userId: newUser.userCode,
+            companyCode: newUser.companyCode,
+            email: newUser.email,
+            role: newUser.role,
+            fullName: newUser.fullName,
+          },
+        });
+>>>>>>> upstream/main
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
 
+<<<<<<< HEAD
 // PUT /api/dashboard/users/:id
+=======
+/**
+ * PUT /api/dashboard/users/:id
+ * Updates role or status of a team member.
+ * Contains hierarchy-based security checks.
+ */
+>>>>>>> upstream/main
 exports.updateUser = async (req, res) => {
     try {
         if (req.user.role !== "admin") {
@@ -242,8 +367,12 @@ exports.updateUser = async (req, res) => {
         const { role, status } = req.body;
         const targetUserId = req.params.id;
 
+<<<<<<< HEAD
         const validRoles = ["admin", "interviewer", "recruiter", "hr manager", "candidate"];
         if (role && !validRoles.includes(role)) {
+=======
+        if (role && !ALLOWED_DASHBOARD_ROLES.includes(role)) {
+>>>>>>> upstream/main
             return res.status(400).json({ message: "Invalid role selected" });
         }
 
@@ -251,9 +380,26 @@ exports.updateUser = async (req, res) => {
             return res.status(400).json({ message: "Invalid status selected" });
         }
 
+<<<<<<< HEAD
         const userToUpdate = await User.findOne({ _id: targetUserId, companyId: req.user.companyId });
         if (!userToUpdate) return res.status(404).json({ message: "User not found" });
 
+=======
+        // Search within the company only
+        const userToUpdate = await User.findOne({ _id: targetUserId, companyId: req.user.companyId });
+        if (!userToUpdate) return res.status(404).json({ message: "User not found" });
+
+        /**
+         * SECURITY GATE: Hierarchy check
+         * 1. A normal Admin cannot edit ANY other Admin (prevents lateral privilege escalations).
+         * 2. Only a "Main Admin" (isMainAdmin: true) has full control over the team roster.
+         */
+        if (userToUpdate.role === "admin" && !req.user.isMainAdmin) {
+            return res.status(403).json({ message: "Only Main Admin can edit other administrators" });
+        }
+
+        // Prevent stripping the Main Admin of their role
+>>>>>>> upstream/main
         if (userToUpdate.isMainAdmin && role && role !== "admin") {
             return res.status(403).json({ message: "Cannot change the role of a Main Admin" });
         }
@@ -280,6 +426,7 @@ exports.deleteUser = async (req, res) => {
         const targetUserId = req.params.id;
         const userToDelete = await User.findOne({ _id: targetUserId, companyId: req.user.companyId });
 
+<<<<<<< HEAD
     if (!userToDelete)
       return res.status(404).json({ message: "User not found" });
     if (userToDelete.isMainAdmin)
@@ -288,6 +435,40 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ message: "Cannot remove yourself" });
 
         await User.findOneAndDelete({ _id: targetUserId, companyId: req.user.companyId });
+=======
+        if (!userToDelete)
+            return res.status(404).json({ message: "User not found" });
+
+        // Normal admins can't remove other admins or the main admin
+        if (userToDelete.role === "admin" && !req.user.isMainAdmin) {
+            return res.status(403).json({ message: "Only Main Admin can remove other administrators" });
+        }
+
+        if (userToDelete.isMainAdmin)
+            return res.status(403).json({ message: "Cannot remove a Main Admin" });
+        
+        if (targetUserId === req.user.id)
+            return res.status(400).json({ message: "Cannot remove yourself" });
+
+        await User.findOneAndDelete({ _id: targetUserId, companyId: req.user.companyId });
+
+        // Best-effort notification for removed users; deletion should still succeed
+        const recipientName =
+          `${String(userToDelete.firstName || "").trim()} ${String(userToDelete.lastName || "").trim()}`.trim() ||
+          String(userToDelete.fullName || "").trim() ||
+          "User";
+
+        await sendCustomEmail({
+          to: userToDelete.email,
+          subject: "Your Reqruita dashboard access has been removed",
+          text:
+            `Dear ${recipientName},\n\n` +
+            "This is to inform you that your access to the Reqruita dashboard has been removed by your company administrator.\n\n" +
+            "If you believe this was done in error, please contact your administrator.\n\n" +
+            "Regards,\nReqruita Team",
+        });
+
+>>>>>>> upstream/main
         res.status(200).json({ message: "User successfully removed" });
     } catch (error) {
         res.status(500).json({ error: error.message });
