@@ -7,7 +7,5 @@ build/
 backend/node_modules/
 reqruita-desktop-app/node_modules/
 # *.db
-<<<<<<< HEAD
-=======
 .txt
->>>>>>> upstream/main
+venv/
